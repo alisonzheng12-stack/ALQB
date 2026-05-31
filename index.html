@@ -907,7 +907,9 @@ function goHome(){document.getElementById('result-overlay').style.display='none'
 // ── 錯題 ────────────────────────────────────────────────
 let wrongGroupFilter='all';
 function renderWrong(){
-  const wq=loadWQ(),entries=Object.values(wq);
+  const wq=loadWQ();
+  // 把 key (id) 直接附在每筆資料上，避免之後用 === 比較參考
+  const entries=Object.entries(wq).map(([qid,q])=>({...q,_qid:qid}));
   document.getElementById('wrong-badge').textContent=entries.length+' 題';
   const fd=document.getElementById('wrong-filter');fd.innerHTML='';
   const groups=['all',...new Set(entries.flatMap(q=>q.groups))];
@@ -921,11 +923,11 @@ function renderWrong(){
   const filtered=wrongGroupFilter==='all'?entries:entries.filter(q=>q.groups.includes(wrongGroupFilter));
   if(!filtered.length){list.innerHTML='<div class="empty-msg">'+(entries.length?'這個分類沒有錯題 🎉':'還沒有錯題記錄<br>答錯的題目會自動收錄到這裡 📌')+'</div>';return}
   filtered.sort((a,b)=>(b.lastWrong||0)-(a.lastWrong||0)).forEach(q=>{
+    const qid=q._qid;
     const card=document.createElement('div');card.className='wq-card';
     const yr=q.exam.match(/^(\d+年)/),subj=q.exam.replace(/.*[：:]\s*/,'').trim();
     const tagsHtml=q.groups.map(g=>{const grp=curGroups.find(x=>x.name===g)||{color:'#94a3b8'};return'<span class="kw-tag" style="background:'+grp.color+'18;color:'+grp.color+';border:1px solid '+grp.color+'44">'+g+'</span>'}).join('');
     const optsHtml=Object.keys(q.options).sort().map(k=>'<div class="wq-option'+(k===q.answer?' is-answer':'')+'"><span class="wq-option-label">'+k+'</span><span>'+q.options[k]+'</span></div>').join('');
-    const allWQ=loadWQ();const qid=Object.keys(allWQ).find(id=>allWQ[id]===q)||'';
     const hasNote=q.note&&q.note.trim();
     card.innerHTML='<div class="wq-meta"><span class="wq-exam">'+(yr?yr[1]+' · ':'')+subj+'</span><span class="wq-wrong-count">答錯 '+q.wrongCount+' 次</span></div>'
       +'<div class="wq-groups">'+tagsHtml+'</div>'
