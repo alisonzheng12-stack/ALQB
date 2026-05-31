@@ -458,6 +458,27 @@ body.dark .modal-input{background:#1e1e1e;border-color:#2a2a2a;color:#dcdcf0}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 body.dark .toast{background:#e0e0f0;color:#1a1a2e}
 
+/* 特訓區 */
+.drill-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.drill-header h2{font-size:20px;font-weight:800}
+.drill-conquered{background:#22c55e;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px}
+.drill-section-title{font-size:12px;font-weight:700;color:#aaa;letter-spacing:.5px;margin-bottom:12px}
+.drill-chips{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:18px}
+.drill-chip{padding:9px 14px;border-radius:12px;border:2px solid;font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;line-height:1.4;display:flex;align-items:center;gap:7px}
+.drill-chip:active{transform:scale(.97)}
+.drill-chip-count{font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(0,0,0,.08);flex-shrink:0}
+.drill-chip.has-wrong .drill-chip-count{background:#ef4444;color:#fff}
+.drill-chip.all-conquered .drill-chip-count{background:#22c55e;color:#fff}
+.drill-chip.empty{opacity:.4;cursor:default}
+.drill-hint{text-align:center;padding:18px;color:#aaa;font-size:13px;font-weight:600}
+.drill-empty{text-align:center;padding:40px 20px;color:#bbb;font-size:13px;line-height:1.8}
+.drill-mode-banner{background:linear-gradient(90deg,#7c3aed,#4f7df3);color:#fff;font-size:12px;font-weight:700;padding:8px 14px;border-radius:10px;margin-bottom:12px;display:none;align-items:center;gap:7px}
+.drill-mode-banner svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;flex-shrink:0}
+body.dark .drill-chip{border-color:rgba(255,255,255,.08)}
+body.dark .drill-chip-count{background:rgba(255,255,255,.12)}
+body.dark .drill-chip.has-wrong .drill-chip-count{background:#ef4444;color:#fff}
+body.dark .drill-hint{color:#5a5a80}
+
 /* 模擬考整體計時器 */
 .mock-exam-timer{font-size:15px;font-weight:800;padding:4px 12px;border-radius:99px;background:#e0f2fe;color:#0369a1;letter-spacing:1px;display:none;flex-shrink:0}
 .mock-exam-timer.warn{background:#fef3c7;color:#d97706}
@@ -599,6 +620,9 @@ if('serviceWorker' in navigator){
   <button class="nav-btn" id="nav-wrong" onclick="showPage('wrong')">
     <svg viewBox="0 0 24 24"><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10z"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>錯題
   </button>
+  <button class="nav-btn" id="nav-drill" onclick="showPage('drill')">
+    <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>特訓
+  </button>
   <button class="nav-btn" id="nav-analysis" onclick="showPage('analysis')">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 010 20"/><path d="M2 12h20"/><path d="M12 2c2.8 2.7 4 6 4 10s-1.2 7.3-4 10"/></svg>分析
   </button>
@@ -650,6 +674,17 @@ if('serviceWorker' in navigator){
   <div id="wrong-list"></div>
 </div>
 
+<!-- 特訓頁 -->
+<div class="page" id="page-drill">
+  <div class="drill-header">
+    <h2>⚔️ 主題特訓</h2>
+    <span class="drill-conquered" id="drill-total-conquered" style="display:none"></span>
+  </div>
+  <div class="drill-section-title" id="drill-section-title">選擇主題</div>
+  <div class="drill-chips" id="drill-chips"></div>
+  <div class="drill-hint" id="drill-hint" style="display:none">請先答題，答錯的題目會自動收錄到這裡 📌</div>
+</div>
+
 <!-- 分析頁 -->
 <div class="page" id="page-analysis">
   <div class="analysis-header"><h2>&#128202; 錯題分析</h2><button class="btn-clear" onclick="clearStats()">清除統計</button></div>
@@ -659,6 +694,11 @@ if('serviceWorker' in navigator){
 <!-- 答題 overlay -->
 <div id="quiz-overlay">
   <div class="quiz-inner">
+    <div id="drill-banner" class="drill-mode-banner">
+      <svg viewBox="0 0 24 24"><polyline points="22 4 12 14.01 9 11.01"/><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/></svg>
+      <span>特訓模式 — 答對即征服，從錯題本移除</span>
+      <span id="drill-conquered-live" style="margin-left:auto;background:rgba(255,255,255,.25);padding:2px 8px;border-radius:99px">⚔️ 0</span>
+    </div>
     <div class="top-bar"><span id="q-counter"></span><span id="score-live"></span><span id="mock-exam-timer" class="mock-exam-timer">60:00</span><span id="q-timer" class="q-timer">30</span><button class="btn-quit" onclick="quitQuiz()">&#10005; 離開</button></div>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
     <div class="question-card">
@@ -778,6 +818,7 @@ function showPage(id){
   const nb=document.getElementById('nav-'+id);nb.classList.add('active');nb.style.color=curSubj.color;
   if(id==='analysis')renderAnalysis();
   if(id==='wrong')renderWrong();
+  if(id==='drill')renderDrill();
 }
 
 // ── localStorage ────────────────────────────────────────
@@ -837,10 +878,15 @@ function startQuiz(){
   renderQ();
 }
 
+function _clearDrillMode(){
+  isDrillMode=false;drillConquered=0;drillGroupName='';
+  document.getElementById('drill-banner').style.display='none';
+}
 function quitQuiz(){
   if(idx>0&&!confirm('確定要離開？'))return;
   document.getElementById('quiz-overlay').style.display='none';
   if(isMockExam){_stopMockTimer();isMockExam=false;document.getElementById('mock-exam-timer').style.display='none';document.getElementById('q-timer').style.display='flex';}
+  if(isDrillMode) _clearDrillMode();
 }
 
 function renderQ(){
@@ -873,12 +919,16 @@ function renderQ(){
 function pick(chosen,correct,btn,od,q){
   if(answered)return;answered=true;_stopTimer();
   const ok=chosen===correct;
-  if(ok)score++;
-  else{
+  if(ok){
+    score++;
+    if(isDrillMode) _drillConquer(q.id); // 特訓模式：答對即征服
+  } else {
     q.groups.forEach(g=>{sWrong[g]=(sWrong[g]||0)+1});
-    const wq=loadWQ();
-    if(!wq[q.id])wq[q.id]={question:q.question,options:q.options,answer:q.answer,exam:q.exam,groups:q.groups,wrongCount:0,note:''};
-    wq[q.id].wrongCount++;wq[q.id].lastWrong=Date.now();saveWQ(wq);
+    if(!isDrillMode){ // 特訓模式不重複計入錯題次數
+      const wq=loadWQ();
+      if(!wq[q.id])wq[q.id]={question:q.question,options:q.options,answer:q.answer,exam:q.exam,groups:q.groups,wrongCount:0,note:''};
+      wq[q.id].wrongCount++;wq[q.id].lastWrong=Date.now();saveWQ(wq);
+    }
   }
   od.querySelectorAll('.option-btn').forEach(b=>{b.disabled=true;if(b.querySelector('.option-label').textContent===correct)b.classList.add(ok?'correct':'show-correct')});
   if(!ok)btn.classList.add('wrong');
@@ -903,7 +953,9 @@ function showResult(){
   circle.style.background=pct>=80?'#22c55e':pct>=60?'#f59e0b':'#ef4444';
   document.getElementById('final-score').textContent=pct;
   document.getElementById('result-title').textContent=pct>=80?'表現優異！':pct>=60?'繼續加油！':'還需多練習';
-  document.getElementById('result-detail').textContent='答對 '+score+' 題，共 '+total+' 題（正確率 '+pct+'%）';
+  const drillSuffix = isDrillMode ? '　⚔️ 征服 '+drillConquered+' 題' : '';
+  document.getElementById('result-detail').textContent='答對 '+score+' 題，共 '+total+' 題（正確率 '+pct+'%）'+drillSuffix;
+  if(isDrillMode) _clearDrillMode();
   document.getElementById('result-overlay').style.background=curSubj.bg;
   document.getElementById('result-overlay').style.display='block';
   document.getElementById('btn-again').style.background=curSubj.color;
@@ -1028,6 +1080,122 @@ function toggleDark(){
   localStorage.setItem('darkMode', isDark ? '1' : '0');
   document.getElementById('dark-toggle').textContent = isDark ? '☀️' : '🌙';
   document.body.style.background = isDark ? '' : curSubj.bg;
+}
+
+// ── 主題特訓 ─────────────────────────────────────────────
+let isDrillMode = false;
+let drillConquered = 0;
+let drillGroupName = '';
+
+// 根據字串產生固定色
+function _topicColor(str){
+  let h=0;for(const c of str)h=(Math.imul(31,h)+c.charCodeAt(0))|0;
+  const hue=Math.abs(h)%360;
+  return `hsl(${hue},52%,46%)`;
+}
+
+// 行政法 14 個主題定義（名稱對應 shuati.tw）
+const DRILL_TOPICS = {
+  adminlaw:[
+    {name:'公務人員之權利義務、服務倫理與保障制度',   kw:['公務員','公務人員','服務倫理','保障制度','職務','懲戒','考績','任用']},
+    {name:'行政法之基本原則：依法行政與比例原則',      kw:['比例原則','法律保留','法律優位','依法行政','基本原則','信賴保護','平等原則','明確性原則']},
+    {name:'行政執行之方法、種類與限制',                kw:['行政執行','強制執行','即時強制','代履行','怠金','直接強制','間接強制']},
+    {name:'國家賠償責任之構成要件、範圍與程序',        kw:['國家賠償','損失補償','國賠','特別犧牲','賠償責任']},
+    {name:'行政爭訟之類型、要件與救濟程序',            kw:['行政訴訟','撤銷訴訟','課予義務','確認訴訟','行政法院','起訴','爭訟']},
+    {name:'行政契約之概念、類型、效力與爭議解決',      kw:['行政契約','雙務契約','行政協定','和解契約','私法契約']},
+    {name:'法規命令與行政規則之概念、效力及制定程序',  kw:['法規命令','行政規則','職權命令','授權命令']},
+    {name:'行政罰之構成要件與責任歸屬',                kw:['行政罰','裁罰','罰鍰','沒入','一行為不二罰','行政秩序罰','裁處','處罰']},
+    {name:'訴願之提起、審理與決定程序',                kw:['訴願','訴願人','訴願管轄','訴願法','訴願決定','訴願機關']},
+    {name:'行政處分之撤銷、廢止與失效',                kw:['撤銷','廢止','無效','瑕疵','授益處分','負擔處分']},
+    {name:'行政程序法：當事人、資訊公開與聽證程序',    kw:['行政程序','陳述意見','聽證','閱覽','送達','行政程序法','告知','通知','公告']},
+    {name:'行政機關之組織、權限與任務分配',            kw:['行政機關','委任','委託','委辦','公法人','行政法人','機關']},
+    {name:'行政處分之概念、種類與法律效果',            kw:['行政處分','行政行為','構成要件','法律效果']},
+    {name:'行政機關之管轄權：種類、判斷與變更',        kw:['管轄','土地管轄','事務管轄','移送','管轄衝突','管轄權']},
+  ],
+  faxu:null, adminsci:null,
+};
+
+function _matchTopic(q, topic){
+  // 優先用 topic_label 精確匹配（Python 已預先分類）
+  if(q.topic_label) return q.topic_label === topic.name;
+  // fallback：關鍵字匹配
+  const txt = (q.question||'')+Object.values(q.options||{}).join('');
+  return topic.kw.some(kw=>txt.includes(kw));
+}
+
+function renderDrill(){
+  const wq     = loadWQ();
+  const wqList = Object.entries(wq).map(([qid,q])=>({...q,_qid:qid}));
+  const chips  = document.getElementById('drill-chips');
+  const hint   = document.getElementById('drill-hint');
+  chips.innerHTML = '';
+
+  // 征服數徽章（仍以錯題征服計算）
+  const conquered = wqList.filter(q=>q.conquered).length;
+  const badge = document.getElementById('drill-total-conquered');
+  if(conquered > 0){ badge.textContent='⚔️ 已征服 '+conquered+' 題'; badge.style.display=''; }
+  else badge.style.display='none';
+
+  const topics = DRILL_TOPICS[curSubjId];
+  if(!topics){
+    chips.innerHTML = '<div class="drill-empty">其他科目主題特訓建置中 🔧</div>';
+    hint.style.display='none'; return;
+  }
+
+  hint.style.display='none';
+  topics.forEach(topic=>{
+    const color = _topicColor(topic.name);
+    // 從全題庫篩出這個主題的題目
+    const topicQs = allQ.filter(q=>_matchTopic(q, topic));
+    const total   = topicQs.length;
+    // 這個主題的錯題數（從錯題本）
+    const wrongCnt = wqList.filter(q=>_matchTopic(q, topic) && !q.conquered).length;
+
+    const chip = document.createElement('button');
+    chip.className = 'drill-chip' + (wrongCnt > 0 ? ' has-wrong' : '');
+    chip.style.cssText = `color:${color};border-color:${color}44;background:${color}12`;
+
+    // 主要數字顯示總題數，有錯題則另外標紅
+    chip.innerHTML = topic.name
+      + '<span class="drill-chip-count">'+total+'</span>'
+      + (wrongCnt > 0 ? '<span style="font-size:10px;background:#ef4444;color:#fff;padding:1px 6px;border-radius:99px;font-weight:800">'+wrongCnt+'錯</span>' : '');
+
+    chip.onclick = ()=>startDrill(topic.name, topicQs);
+    chips.appendChild(chip);
+  });
+}
+
+function startDrill(groupName, qs){
+  isDrillMode = true;
+  drillConquered = 0;
+  drillGroupName = groupName;
+
+  // 從 allQ 取題（直接使用題庫格式）
+  quizQ = [...qs].sort(()=>Math.random()-.5);
+
+  idx=0; score=0; sWrong={}; sTotal={};
+  document.getElementById('quiz-overlay').style.background = curSubj.bg;
+  document.getElementById('quiz-overlay').style.display = 'block';
+  document.getElementById('progress-fill').style.background = curSubj.color;
+  document.getElementById('mock-exam-timer').style.display = 'none';
+  document.getElementById('q-timer').style.display = 'flex';
+
+  const banner = document.getElementById('drill-banner');
+  banner.style.display = 'flex';
+  document.getElementById('drill-conquered-live').textContent = '⚔️ 0';
+
+  renderQ();
+}
+
+function _drillConquer(qid){
+  // 征服：在錯題本標記 conquered，並更新
+  const wq = loadWQ();
+  if(wq[qid]){
+    wq[qid].conquered = true;
+    saveWQ(wq);
+  }
+  drillConquered++;
+  document.getElementById('drill-conquered-live').textContent = '⚔️ '+drillConquered;
 }
 
 // ── 模擬考 ───────────────────────────────────────────────
