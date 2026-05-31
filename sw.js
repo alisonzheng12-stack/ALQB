@@ -11,7 +11,6 @@ const ASSETS = [
   './data_adminsci.js',
 ];
 
-// 安裝：預先快取所有資源
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
@@ -19,7 +18,6 @@ self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
-// 啟動：清除舊版快取
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -29,18 +27,16 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// 攔截請求：Cache First（離線優先）
+// Network First：優先從網路取最新版，失敗才用快取（確保更新後立即生效）
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(res => {
-        // 只快取同域請求
+    fetch(event.request)
+      .then(res => {
         if (!res || res.status !== 200 || res.type !== 'basic') return res;
         const clone = res.clone();
         caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
         return res;
-      }).catch(() => caches.match('./index.html'));
-    })
+      })
+      .catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html')))
   );
 });
