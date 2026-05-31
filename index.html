@@ -410,6 +410,11 @@ body.dark .sync-btn.saving{border-color:#1e3a5f;background:#0c1a2e;color:#60a5fa
 body.dark .sync-btn.ok    {border-color:#166534;background:#052e16;color:#4ade80}
 body.dark .sync-btn.fail  {border-color:#7f1d1d;background:#1a0000;color:#f87171}
 
+/* 瀏覽人次 */
+.visit-counter{flex-shrink:0;display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#888;white-space:nowrap;padding:0 4px}
+.visit-counter svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+body.dark .visit-counter{color:#5a5a80}
+
 /* 頂部重置按鈕 */
 .reset-top-btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1.5px solid #fca5a5;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#ef4444;transition:all .2s}
 .reset-top-btn:hover{background:#fee2e2;border-color:#ef4444}
@@ -539,6 +544,10 @@ if('serviceWorker' in navigator){
 <div class="top-bar-wrap">
   <div class="subject-bar" id="subject-bar"></div>
   <div class="top-controls">
+    <div class="visit-counter" id="visit-counter" title="累計瀏覽人次">
+      <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span id="visit-count">--</span>
+    </div>
     <div id="sync-btn" class="sync-btn">
       <svg id="sync-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
       <span id="sync-text">儲存中</span>
@@ -1081,6 +1090,21 @@ function _updateMockTimerDisplay(){
 function _stopMockTimer(){
   clearInterval(mockTimerInterval);
 }
+
+// ── 瀏覽人次 ─────────────────────────────────────────────
+(async function initVisitCounter(){
+  try {
+    const ref = _db.collection('stats').doc('visitors');
+    await ref.set({count: firebase.firestore.FieldValue.increment(1)}, {merge:true});
+    const snap = await ref.get();
+    const n = snap.data()?.count || 0;
+    const el = document.getElementById('visit-count');
+    if(el) el.textContent = n >= 10000 ? (n/10000).toFixed(1)+'萬' : n.toLocaleString();
+  } catch(e) {
+    const el = document.getElementById('visit-count');
+    if(el) el.textContent = '';
+  }
+})();
 
 // ── 啟動 ────────────────────────────────────────────────
 initDarkMode();
