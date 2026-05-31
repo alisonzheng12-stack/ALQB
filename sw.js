@@ -1,5 +1,5 @@
 /* 考試題庫 Service Worker */
-const CACHE_NAME = 'quiz-cache-v1';
+const CACHE_NAME = 'quiz-cache-v1780234594';
 const ASSETS = [
   './',
   './index.html',
