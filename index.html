@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-title" content="題庫">
 <meta name="theme-color" content="#4f7df3" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#13131c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>考試題庫</title>
 <!-- Firebase SDK -->
@@ -30,17 +30,17 @@ let _uid = null;
 
 _auth.onAuthStateChanged(user => {
   _uid = user ? user.uid : null;
-  const btn    = document.getElementById('login-btn');
-  const userInfo = document.getElementById('user-info');
-  const userEmail = document.getElementById('user-email');
+  const btn     = document.getElementById('login-btn');
+  const userInfo= document.getElementById('user-info');
+  const userEmail=document.getElementById('user-email');
   if (user) {
-    if (btn)      btn.style.display = 'none';
-    if (userInfo) userInfo.style.display = 'flex';
+    if (btn)       btn.style.display = 'none';
+    if (userInfo)  userInfo.style.display = 'flex';
     if (userEmail) userEmail.textContent = user.email;
     _loadFromFirestore();
   } else {
-    if (btn)      btn.style.display = 'flex';
-    if (userInfo) userInfo.style.display = 'none';
+    if (btn)       btn.style.display = 'flex';
+    if (userInfo)  userInfo.style.display = 'none';
   }
 });
 
@@ -74,9 +74,33 @@ function _logout() {
   if (confirm('確定登出？')) _auth.signOut();
 }
 
+let _syncTimer = null;
+function _setSyncState(state, text) {
+  const btn = document.getElementById('sync-btn');
+  const ico = document.getElementById('sync-icon');
+  const lbl = document.getElementById('sync-text');
+  if (!btn) return;
+  btn.className = 'sync-btn ' + state;
+  btn.style.display = 'flex';
+  lbl.textContent = text;
+  const icons = {
+    saving: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+    ok:     '<polyline points="20 6 9 17 4 12"/>',
+    fail:   '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  };
+  ico.innerHTML = icons[state] || icons.saving;
+  clearTimeout(_syncTimer);
+  if (state !== 'saving') _syncTimer = setTimeout(() => { btn.style.display = 'none'; }, 3000);
+}
 async function _saveToFirestore(key, data) {
   if (!_uid) return;
-  try { await _db.collection('users').doc(_uid).collection('data').doc(key).set(data, {merge:true}); } catch(e) {}
+  _setSyncState('saving', '儲存中');
+  try {
+    await _db.collection('users').doc(_uid).collection('data').doc(key).set(data, {merge:true});
+    _setSyncState('ok', '已儲存');
+  } catch(e) {
+    _setSyncState('fail', '儲存失敗');
+  }
 }
 
 async function _loadFromFirestore() {
@@ -98,51 +122,36 @@ async function _loadFromFirestore() {
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh;padding-top:58px;padding-bottom:70px}
 
-/* 頂部外殼（固定高度，不滾動） */
+/* 頂部外殼 */
 .top-bar-wrap{
   position:fixed;top:env(safe-area-inset-top);left:0;right:0;
-  height:54px;
-  background:#fff;
-  border-bottom:1px solid #eee;
-  display:flex;align-items:center;
-  z-index:9999;
+  height:54px;background:#fff;border-bottom:1px solid #eee;
+  display:flex;align-items:center;z-index:9999;
   box-shadow:0 2px 8px rgba(0,0,0,.06);
 }
-/* 科目按鈕可橫滾區（左側彈性） */
 .subject-bar{
-  flex:1;min-width:0;
-  display:flex;align-items:center;
-  gap:8px;
-  padding:0 8px 0 16px;
+  flex:1;min-width:0;display:flex;align-items:center;
+  gap:8px;padding:0 8px 0 16px;
   overflow-x:auto;scrollbar-width:none;
 }
 .subject-bar::-webkit-scrollbar{display:none}
-/* 右側控制區（永遠固定，不滾） */
 .top-controls{
-  flex-shrink:0;
-  display:flex;align-items:center;gap:4px;
-  padding:0 12px 0 4px;
-  background:inherit;
+  flex-shrink:0;display:flex;align-items:center;gap:4px;
+  padding:0 12px 0 4px;background:inherit;
 }
 .subj-btn{flex-shrink:0;padding:7px 18px;border-radius:99px;border:2px solid #e0e0e0;background:#fafafa;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;color:#888;white-space:nowrap}
 .subj-btn.active{color:#fff;border-color:transparent}
-body.dark .top-bar-wrap{background:#1d1d2b;border-color:#2a2a40;box-shadow:0 2px 12px rgba(0,0,0,.4)}
-body.dark .top-controls{background:#1d1d2b}
+body.dark .top-bar-wrap{background:#111111;border-color:#2a2a2a;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+body.dark .top-controls{background:#111111}
 
 /* 底部導覽 */
 .nav-bar{
-  position:fixed;
-  bottom:0;left:0;right:0;
-  height:62px;
-  background:#fff;
-  border-top:1px solid #eee;
-  display:flex;
-  z-index:9999;                         /* 永遠在最上層 */
+  position:fixed;bottom:0;left:0;right:0;
+  height:62px;background:#fff;border-top:1px solid #eee;
+  display:flex;z-index:9999;
   box-shadow:0 -2px 12px rgba(0,0,0,.06);
-  /* iOS Home Bar 安全區 */
   padding-bottom:env(safe-area-inset-bottom);
   height:calc(62px + env(safe-area-inset-bottom));
-  /* PWA standalone 時確保貼底 */
   padding-left:env(safe-area-inset-left);
   padding-right:env(safe-area-inset-right);
 }
@@ -168,12 +177,18 @@ select,input[type=number]{width:100%;padding:10px 13px;border:1.5px solid #e8e8e
 .stat-box .num{font-size:24px;font-weight:800}
 .stat-box .lbl{font-size:11px;color:#aaa;margin-top:2px}
 
-/* 答題 overlay（z-index 低於 nav-bar，內容自己留底部空間） */
+/* 答題 overlay */
 #quiz-overlay{display:none;position:fixed;inset:0;background:#f0f2f5;z-index:500;overflow-y:auto;
   padding-bottom:calc(80px + env(safe-area-inset-bottom));padding-top:0}
 .quiz-inner{max-width:640px;margin:0 auto;padding:14px}
 .top-bar{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#888;margin:10px 0 5px}
 .btn-quit{background:none;border:none;font-size:13px;color:#aaa;cursor:pointer;padding:4px 8px;border-radius:8px}
+.q-timer{font-size:15px;font-weight:800;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#f0f0f0;color:#555;transition:background .3s,color .3s;flex-shrink:0}
+.q-timer.warn{background:#fef3c7;color:#d97706}
+.q-timer.danger{background:#fee2e2;color:#dc2626}
+body.dark .q-timer{background:#1e1e1e;color:#aaa}
+body.dark .q-timer.warn{background:#451a03;color:#fbbf24}
+body.dark .q-timer.danger{background:#450a0a;color:#f87171}
 .progress-bar-wrap{background:#e0e0e0;border-radius:99px;height:5px;margin-bottom:18px;overflow:hidden}
 .progress-bar-fill{height:100%;border-radius:99px;transition:width .4s}
 .question-card{background:#fff;border-radius:16px;padding:22px 20px;box-shadow:0 4px 20px rgba(0,0,0,.06);margin-bottom:12px}
@@ -260,24 +275,22 @@ svg.radar{overflow:visible}
 .empty-msg{text-align:center;padding:36px 20px;color:#bbb;font-size:13px;line-height:1.8}
 .no-wrong{text-align:center;padding:18px;color:#22c55e;font-weight:600;font-size:13px}
 
-/* ── PWA Standalone 模式 ── */
+/* PWA Standalone */
 @media (display-mode: standalone) {
   .top-bar-wrap{top:env(safe-area-inset-top)!important}
   body{padding-top:calc(54px + env(safe-area-inset-top))!important}
   .nav-bar{position:fixed!important;bottom:0!important;left:0!important;right:0!important;z-index:9999!important;padding-bottom:env(safe-area-inset-bottom)!important;height:calc(62px + env(safe-area-inset-bottom))!important;background:#fff}
-  body.dark .nav-bar{background:#1d1d2b!important}
+  body.dark .nav-bar{background:#111111!important}
   body{padding-bottom:calc(72px + env(safe-area-inset-bottom))!important}
   #quiz-overlay{padding-bottom:calc(82px + env(safe-area-inset-bottom))!important}
   #result-overlay{padding-bottom:calc(90px + env(safe-area-inset-bottom))!important}
 }
 
-/* ── iOS / iPad 響應式 ── */
-
-/* 消除 iOS tap 高亮和雙擊縮放 */
+/* iOS tap 取消高亮 */
 *{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 button,select,input{-webkit-appearance:none;appearance:none}
 
-/* iOS safe area 支援（瀏海 / 底部 Home Bar） */
+/* iOS safe area */
 body{
   padding-top:calc(54px + env(safe-area-inset-top));
   padding-bottom:calc(70px + env(safe-area-inset-bottom));
@@ -292,22 +305,21 @@ body{
   height:calc(62px + env(safe-area-inset-bottom));
 }
 
-/* iOS form 字體最小 16px，防止 Safari 自動放大 */
+/* iOS form 防止自動放大 */
 select,input[type=number]{font-size:16px}
 
-/* 基礎觸控友善 */
+/* 觸控友善 */
 .btn-primary{min-height:52px;font-size:16px}
 .option-btn{min-height:52px;font-size:15px;padding:14px 16px}
 .subj-btn{min-height:38px;padding:8px 18px}
 .filter-chip{min-height:36px}
 .nav-btn{min-height:44px}
 
-/* ── 手機（< 430px，iPhone 標準） ── */
+/* 手機 */
 @media(max-width:430px){
   .top-bar-wrap{height:48px}
   .subject-bar{gap:6px;padding:0 4px 0 calc(10px + env(safe-area-inset-left))}
   .top-controls{padding:0 calc(8px + env(safe-area-inset-right)) 0 4px;gap:3px}
-
   body{padding-top:calc(48px + env(safe-area-inset-top))}
   .subj-btn{padding:7px 13px;font-size:13px}
   .page{padding:12px 12px 0}
@@ -327,12 +339,9 @@ select,input[type=number]{font-size:16px}
   .result-card{padding:20px 16px}
 }
 
-/* ── iPad（768px+） ── */
+/* iPad */
 @media(min-width:768px){
-  body{
-    padding-top:calc(62px + env(safe-area-inset-top));
-    padding-bottom:calc(80px + env(safe-area-inset-bottom));
-  }
+  body{padding-top:calc(62px + env(safe-area-inset-top));padding-bottom:calc(80px + env(safe-area-inset-bottom));}
   .top-bar-wrap{height:62px}
   .subject-bar{gap:12px;padding:0 8px 0 32px}
   .top-controls{padding:0 32px 0 8px;gap:8px}
@@ -342,7 +351,6 @@ select,input[type=number]{font-size:16px}
   .nav-bar{height:calc(76px + env(safe-area-inset-bottom))}
   .nav-btn{font-size:13px;gap:5px}
   .nav-btn svg{width:26px;height:26px}
-
   .page{padding:24px 32px 0;max-width:780px}
   .card{padding:26px 24px;border-radius:18px;margin-bottom:16px}
   .page-header{font-size:24px;margin-bottom:20px}
@@ -353,7 +361,6 @@ select,input[type=number]{font-size:16px}
   .setting-label{font-size:13px}
   select,input[type=number]{padding:13px 16px;font-size:16px;border-radius:12px}
   .btn-primary{padding:17px;font-size:17px;border-radius:14px;min-height:58px}
-
   .quiz-inner{padding:20px 32px;max-width:780px}
   .question-card{padding:32px 28px;border-radius:20px}
   .question-text{font-size:18px;line-height:1.7;margin-bottom:24px}
@@ -363,17 +370,13 @@ select,input[type=number]{font-size:16px}
   .feedback{font-size:16px;padding:14px 18px}
   .btn-next{font-size:17px;padding:16px;border-radius:14px;min-height:56px}
   .btn-quit{font-size:14px}
-
-  /* iPad 選項 2 欄（適合 A/B/C/D 各佔半邊） */
   .options{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-
   .result-inner{padding:28px 32px;max-width:780px}
   .result-card{padding:32px 28px;border-radius:22px}
   .score-circle{width:96px;height:96px}
   .score-circle .num{font-size:32px}
   .score-info h2{font-size:22px}
   .score-info .detail{font-size:15px}
-
   .wrong-header h2,.analysis-header h2{font-size:24px}
   .wq-card{padding:22px 22px 14px;border-radius:16px}
   .wq-question{font-size:15px}
@@ -383,113 +386,115 @@ select,input[type=number]{font-size:16px}
   svg.radar{width:340px;height:340px}
 }
 
-/* ── iPad Pro 大尺寸（1024px+） ── */
+/* iPad Pro */
 @media(min-width:1024px){
   .page,.quiz-inner,.result-inner{max-width:900px;padding-left:48px;padding-right:48px}
   .question-text{font-size:19px}
   .option-btn{font-size:17px}
 }
 
-/* 深色模式切換按鈕 */
+/* 深色切換按鈕 */
 .dark-toggle{flex-shrink:0;margin-left:auto;width:36px;height:36px;border-radius:50%;border:none;background:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:background .2s}
 .dark-toggle:hover{background:rgba(128,128,128,.15)}
+
+/* 雲端存檔狀態按鈕 */
+.sync-btn{flex-shrink:0;height:30px;padding:0 10px;border-radius:99px;border:1.5px solid #e0e0e0;background:#fff;font-size:12px;font-weight:700;cursor:default;display:none;align-items:center;gap:5px;transition:all .4s;white-space:nowrap}
+.sync-btn.saving{border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}
+.sync-btn.ok    {border-color:#86efac;background:#f0fdf4;color:#15803d}
+.sync-btn.fail  {border-color:#fca5a5;background:#fff5f5;color:#b91c1c}
+.sync-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sync-btn.saving svg{animation:spin .8s linear infinite}
+body.dark .sync-btn{background:#111111;border-color:#2a2a2a;color:#aaa}
+body.dark .sync-btn.saving{border-color:#1e3a5f;background:#0c1a2e;color:#60a5fa}
+body.dark .sync-btn.ok    {border-color:#166534;background:#052e16;color:#4ade80}
+body.dark .sync-btn.fail  {border-color:#7f1d1d;background:#1a0000;color:#f87171}
+
+/* 頂部重置按鈕 */
+.reset-top-btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1.5px solid #fca5a5;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#ef4444;transition:all .2s}
+.reset-top-btn:hover{background:#fee2e2;border-color:#ef4444}
+.reset-top-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+body.dark .reset-top-btn{border-color:#7f1d1d;color:#f87171}
+body.dark .reset-top-btn:hover{background:#450a0a;border-color:#f87171}
 
 /* 登入按鈕 */
 .login-btn{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;border:1.5px solid #e0e0e0;background:#fff;font-size:12px;font-weight:700;color:#444;cursor:pointer;white-space:nowrap;transition:all .2s}
 .login-btn:hover{border-color:#4f7df3;color:#4f7df3}
-body.dark .login-btn{background:#272737;border-color:#2a2a40;color:#aaa}
+body.dark .login-btn{background:#1e1e1e;border-color:#2a2a2a;color:#aaa}
 .user-info{display:flex;align-items:center;gap:6px;flex-shrink:0}
 .user-email{font-size:11px;font-weight:600;color:#555;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 body.dark .user-email{color:#aaa}
 .logout-btn{font-size:11px;font-weight:700;color:#ef4444;background:none;border:1.5px solid #fca5a5;border-radius:99px;padding:4px 10px;cursor:pointer;white-space:nowrap}
 .logout-btn:hover{background:#fff5f5}
 body.dark .logout-btn{border-color:#7f1d1d;color:#f87171}
+
 /* 登入 Modal */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px}
 .modal-box{background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px;box-shadow:0 8px 40px rgba(0,0,0,.18)}
-body.dark .modal-box{background:#1d1d2b;color:#dcdcf0}
+body.dark .modal-box{background:#111111;color:#dcdcf0}
 .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
 .modal-header span{font-size:18px;font-weight:800}
 .modal-close{background:none;border:none;font-size:18px;cursor:pointer;color:#888;line-height:1}
 .modal-input{border:1.5px solid #e0e0e0;border-radius:10px;padding:12px 14px;font-size:15px;outline:none;transition:border-color .2s}
 .modal-input:focus{border-color:#4f7df3}
-body.dark .modal-input{background:#272737;border-color:#2a2a40;color:#dcdcf0}
+body.dark .modal-input{background:#1e1e1e;border-color:#2a2a2a;color:#dcdcf0}
 .modal-err{font-size:13px;color:#ef4444;min-height:16px;font-weight:600}
 .modal-submit{background:#4f7df3;color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s}
 .modal-submit:hover{background:#3a66d8}
-.modal-toggle{background:none;border:none;color:#4f7df3;font-size:13px;font-weight:600;cursor:pointer;text-align:center}
 
-/* Toast 通知 */
+/* Toast */
 .toast{position:fixed;top:calc(62px + env(safe-area-inset-top));left:50%;transform:translateX(-50%) translateY(-10px);background:#1a1a2e;color:#fff;padding:10px 20px;border-radius:99px;font-size:13px;font-weight:600;z-index:99999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 body.dark .toast{background:#e0e0f0;color:#1a1a2e}
 
-/* ── 深色模式（三層深度色階）──
-   層1 頁面底色  #13131c  最深
-   層2 卡片/面板 #1d1d2b  中層
-   層3 輸入欄位  #272737  最亮
-   文字主色      #dcdcf0
-   文字次色      #7070a0
-   邊框          #2a2a40
-*/
-body.dark{background:#13131c;color:#dcdcf0}
+/* 模擬考整體計時器 */
+.mock-exam-timer{font-size:15px;font-weight:800;padding:4px 12px;border-radius:99px;background:#e0f2fe;color:#0369a1;letter-spacing:1px;display:none;flex-shrink:0}
+.mock-exam-timer.warn{background:#fef3c7;color:#d97706}
+.mock-exam-timer.danger{background:#fee2e2;color:#dc2626;animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+body.dark .mock-exam-timer{background:#0c2a40;color:#38bdf8}
+body.dark .mock-exam-timer.warn{background:#451a03;color:#fbbf24}
+body.dark .mock-exam-timer.danger{background:#450a0a;color:#f87171}
 
-/* 頂部 / 底部導覽 */
-body.dark .subj-btn{background:#272737;border-color:#2a2a40;color:#7070a0}
-body.dark .subj-btn{background:#272737;border-color:#2a2a40;color:#7070a0}
-body.dark .nav-bar{background:#1d1d2b;border-color:#2a2a40;box-shadow:0 -2px 12px rgba(0,0,0,.4)}
-body.dark .nav-btn{color:#4a4a6a}
+/* 模擬考頁面 */
+.mock-info-row{display:flex;gap:8px;margin-bottom:16px}
+.mock-info-box{flex:1;background:#f0f9ff;border-radius:13px;padding:14px 8px;text-align:center;border:1.5px solid #bae6fd}
+.mock-info-box .num{font-size:24px;font-weight:800;color:#0369a1}
+.mock-info-box .lbl{font-size:11px;color:#0ea5e9;margin-top:2px}
+body.dark .mock-info-box{background:#0c2233;border-color:#1e4060}
+body.dark .mock-info-box .num{color:#38bdf8}
+body.dark .mock-info-box .lbl{color:#0ea5e9}
+
+/* ── 深色模式 ── */
+body.dark{background:#000000;color:#dcdcf0}
+body.dark .subj-btn{background:#1e1e1e;border-color:#3a3a55;color:#d0d0e8}
+body.dark .subj-btn.active{color:#fff!important}
+body.dark .nav-bar{background:#111111;border-color:#2a2a2a;box-shadow:0 -2px 12px rgba(0,0,0,.4)}
+body.dark .nav-btn{color:#9090b8}
 body.dark .dark-toggle:hover{background:rgba(255,255,255,.08)}
-
-/* 文字 */
 body.dark .page-header,body.dark .analysis-header h2,body.dark .wrong-header h2{color:#dcdcf0}
 body.dark .setting-label{color:#7070a0}
 body.dark .section-title{color:#b0b0d0}
-body.dark .section-sub{color:#5050780}
+body.dark .section-sub{color:#507078}
 body.dark .legend{color:#7070a0}
 body.dark .score-info h2{color:#dcdcf0}
 body.dark .score-info .detail{color:#7070a0}
-
-/* 卡片（層2） */
-body.dark .card,
-body.dark .stat-box,
-body.dark .question-card,
-body.dark .result-card,
-body.dark .wq-card{background:#1d1d2b;box-shadow:0 2px 16px rgba(0,0,0,.35)}
+body.dark .card,body.dark .stat-box,body.dark .question-card,body.dark .result-card,body.dark .wq-card{background:#111111;box-shadow:0 2px 16px rgba(0,0,0,.35)}
 body.dark .stat-box .lbl{color:#5a5a80}
 body.dark .stat-box .num{color:#dcdcf0}
-
-/* 輸入欄（層3） */
-body.dark select,body.dark input[type=number]{background:#272737;border-color:#2a2a40;color:#dcdcf0}
+body.dark select,body.dark input[type=number]{background:#1e1e1e;border-color:#2a2a2a;color:#dcdcf0}
 body.dark select:focus,body.dark input:focus{border-color:var(--accent)}
-
-/* 按鈕 */
-body.dark .btn-clear{background:#272737;border-color:#2a2a40;color:#7070a0}
-body.dark .btn-next{background:#272737;color:#dcdcf0}
+body.dark .btn-clear{background:#1e1e1e;border-color:#2a2a2a;color:#7070a0}
+body.dark .btn-next{background:#1e1e1e;color:#dcdcf0}
 body.dark .btn-quit{color:#5a5a80}
-body.dark .btn-primary:not(.btn-danger){
-  filter:brightness(1.15) saturate(1.1);
-  box-shadow:0 0 18px rgba(100,120,255,.25);
-  color:#000 !important;
-  text-shadow:none;
-}
-body.dark .btn-primary:not(.btn-danger):hover{
-  filter:brightness(1.3) saturate(1.15);
-  box-shadow:0 0 24px rgba(100,120,255,.4);
-  color:#000 !important;
-}
-
-/* 答題 overlay */
-body.dark #quiz-overlay,body.dark #result-overlay{background:#13131c}
-body.dark .exam-tag{background:#272737;color:#7070a0}
-body.dark .progress-bar-wrap{background:#272737}
-
-/* 選項按鈕（層3底色） */
-body.dark .option-btn{background:#272737;border-color:#2a2a40;color:#dcdcf0}
-body.dark .option-btn:hover:not(:disabled){background:#30304a;border-color:var(--accent)}
-body.dark .option-label{background:#30304a;color:#9090b8}
-
-/* 答對/答錯 */
+body.dark .btn-primary:not(.btn-danger){box-shadow:0 0 18px rgba(100,120,255,.25);color:#fff!important;text-shadow:none;}
+body.dark .btn-primary:not(.btn-danger):hover{box-shadow:0 0 24px rgba(100,120,255,.4);color:#fff!important;}
+body.dark #quiz-overlay,body.dark #result-overlay{background:#000000}
+body.dark .exam-tag{background:#1e1e1e;color:#7070a0}
+body.dark .progress-bar-wrap{background:#1e1e1e}
+body.dark .option-btn{background:#1e1e1e;border-color:#2a2a2a;color:#dcdcf0}
+body.dark .option-btn:hover:not(:disabled){background:#2e2e2e;border-color:var(--accent)}
+body.dark .option-label{background:#2e2e2e;color:#9090b8}
 body.dark .option-btn.correct{background:#0d2e1a;border-color:#22c55e}
 body.dark .option-btn.correct .option-label{background:#22c55e;color:#fff}
 body.dark .option-btn.wrong{background:#2e0d0d;border-color:#ef4444}
@@ -498,26 +503,20 @@ body.dark .option-btn.show-correct{background:#0d2e1a;border-color:#22c55e}
 body.dark .option-btn.show-correct .option-label{background:#22c55e;color:#fff}
 body.dark .feedback.correct{background:#0d2e1a;color:#4ade80}
 body.dark .feedback.wrong{background:#2e0d0d;color:#f87171}
-
-/* 錯題本 */
-body.dark .filter-chip{background:#272737;border-color:#2a2a40;color:#7070a0}
+body.dark .filter-chip{background:#1e1e1e;border-color:#2a2a2a;color:#7070a0}
 body.dark .wq-exam{color:#5a5a80}
 body.dark .wq-question{color:#dcdcf0}
-body.dark .wq-option{background:#272737;color:#dcdcf0;border-color:transparent}
+body.dark .wq-option{background:#1e1e1e;color:#dcdcf0;border-color:transparent}
 body.dark .wq-option.is-answer{background:#0d2e1a;border-color:#22c55e}
-body.dark .wq-option-label{background:#30304a;color:#9090b8}
-body.dark .wq-textarea{background:#272737;border-color:#2a2a40;color:#dcdcf0}
+body.dark .wq-option-label{background:#2e2e2e;color:#9090b8}
+body.dark .wq-textarea{background:#1e1e1e;border-color:#2a2a2a;color:#dcdcf0}
 body.dark .wq-textarea:focus{border-color:var(--accent)}
 body.dark .wq-saved-note{background:#0d2e1a;color:#4ade80;border-color:#22c55e}
 body.dark .empty-msg{color:#3a3a5a}
 body.dark .wq-wrong-count{background:#2e0d0d;color:#f87171}
-
-/* 雷達圖 */
-body.dark .radar-grid{stroke:#272737}
-body.dark .radar-axis{stroke:#2a2a40}
+body.dark .radar-grid{stroke:#1e1e1e}
+body.dark .radar-axis{stroke:#2a2a2a}
 body.dark .radar-label{fill:#9090b8}
-
-/* 弱點清單 */
 body.dark .weak-item{background:rgba(30,30,43,.8)}
 </style>
 <script>
@@ -528,7 +527,6 @@ if('serviceWorker' in navigator){
       .catch(e => console.log('SW error:', e));
   });
 }
-// URL 參數：?subj=adminlaw 直接跳科目
 (function(){
   const p = new URLSearchParams(location.search).get('subj');
   if(p) window.__initSubj = p;
@@ -539,10 +537,15 @@ if('serviceWorker' in navigator){
 
 <!-- 頂部科目切換 -->
 <div class="top-bar-wrap">
-  <!-- 可橫滾科目按鈕區 -->
   <div class="subject-bar" id="subject-bar"></div>
-  <!-- 固定右側控制區 -->
   <div class="top-controls">
+    <div id="sync-btn" class="sync-btn">
+      <svg id="sync-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      <span id="sync-text">儲存中</span>
+    </div>
+    <button class="reset-top-btn" onclick="resetAll()" title="資料全部重置">
+      <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    </button>
     <button id="login-btn" class="login-btn" onclick="_openLoginModal()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       登入同步
@@ -557,7 +560,7 @@ if('serviceWorker' in navigator){
 <div class="toast" id="toast"></div>
 
 <!-- 登入 Modal -->
-<div id="login-modal" class="modal-overlay" style="display:none" data-mode="login" onclick="if(event.target===this)_closeLoginModal()">
+<div id="login-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)_closeLoginModal()">
   <div class="modal-box">
     <div class="modal-header">
       <span id="login-title">登入帳號</span>
@@ -574,6 +577,9 @@ if('serviceWorker' in navigator){
 <nav class="nav-bar" id="nav-bar">
   <button class="nav-btn active" id="nav-practice" onclick="showPage('practice')">
     <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>練習
+  </button>
+  <button class="nav-btn" id="nav-mock" onclick="showPage('mock')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>模擬考
   </button>
   <button class="nav-btn" id="nav-wrong" onclick="showPage('wrong')">
     <svg viewBox="0 0 24 24"><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10z"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>錯題
@@ -597,7 +603,28 @@ if('serviceWorker' in navigator){
     <div class="setting-group"><span class="setting-label">出題數量</span>
       <input type="number" id="num-questions" value="20" min="5" max="9999"></div>
     <button class="btn-primary" id="btn-start" onclick="startQuiz()">開始答題</button>
-    <button class="btn-primary btn-danger" onclick="resetAll()" style="margin-top:8px">&#128465; 資料全部重置</button>
+  </div>
+</div>
+
+<!-- 模擬考頁 -->
+<div class="page" id="page-mock">
+  <div class="page-header">📝 模擬考</div>
+  <div class="mock-info-row">
+    <div class="mock-info-box"><div class="num">50</div><div class="lbl">隨機題數</div></div>
+    <div class="mock-info-box"><div class="num">60</div><div class="lbl">考試分鐘</div></div>
+    <div class="mock-info-box"><div class="num" id="mock-pool-count">0</div><div class="lbl">題庫可用</div></div>
+  </div>
+  <div class="card">
+    <div class="setting-group">
+      <span class="setting-label">出題範圍</span>
+      <select id="mock-filter-exam" onchange="updateMockPoolCount()"><option value="all">全部考試</option></select>
+    </div>
+    <div style="background:#fff7ed;border-radius:11px;padding:13px 15px;margin-bottom:14px;font-size:13px;color:#92400e;line-height:1.7;border:1px solid #fed7aa">
+      ⏱ 考試開始後倒數 <strong>60 分鐘</strong>，時間到自動交卷。<br>
+      🎲 從題庫隨機抽取 <strong>50 題</strong>，每題無單獨計時。<br>
+      📊 結束後顯示成績與錯題分析。
+    </div>
+    <button class="btn-primary" id="mock-btn-start" onclick="startMockExam()" style="background:#0891b2">🚀 開始模擬考</button>
   </div>
 </div>
 
@@ -617,7 +644,7 @@ if('serviceWorker' in navigator){
 <!-- 答題 overlay -->
 <div id="quiz-overlay">
   <div class="quiz-inner">
-    <div class="top-bar"><span id="q-counter"></span><span id="score-live"></span><button class="btn-quit" onclick="quitQuiz()">&#10005; 離開</button></div>
+    <div class="top-bar"><span id="q-counter"></span><span id="score-live"></span><span id="mock-exam-timer" class="mock-exam-timer">60:00</span><span id="q-timer" class="q-timer">30</span><button class="btn-quit" onclick="quitQuiz()">&#10005; 離開</button></div>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
     <div class="question-card">
       <span class="exam-tag" id="exam-tag"></span>
@@ -651,8 +678,8 @@ if('serviceWorker' in navigator){
 
 <script>
 // ── 設定 ────────────────────────────────────────────────
-const SUBJECTS = [{"id": "adminlaw", "name": "行政法", "icon": "⚖️", "color": "#4f7df3", "color2": "#3a66d8", "bg": "#f0f2f5", "store": "al_stats", "wstore": "al_wrong", "dataVar": "DATA_ADMINLAW"}, {"id": "faxu", "name": "法學緒論", "icon": "📖", "color": "#7c3aed", "color2": "#6d28d9", "bg": "#f5f0ff", "store": "fx_stats", "wstore": "fx_wrong", "dataVar": "DATA_FAXU"}, {"id": "adminsci", "name": "行政學", "icon": "🏛️", "color": "#0891b2", "color2": "#0e7490", "bg": "#f0f9ff", "store": "as_stats", "wstore": "as_wrong", "dataVar": "DATA_ADMINSCI"}];
-const GROUPS_MAP = {"adminlaw":[{name:"行政處分",color:"#6366f1",keywords:["行政處分", "授益處分", "負擔處分", "撤銷", "廢止", "無效", "行政行為", "構成要件", "行政命令", "法規命令", "行政規則", "職權命令"]},{name:"附款",color:"#8b5cf6",keywords:["附款", "條件", "期限", "負擔", "廢止權保留", "停止條件", "解除條件", "不當聯結"]},{name:"行政契約",color:"#a855f7",keywords:["行政契約", "雙務契約", "行政協定", "和解契約", "私法契約"]},{name:"行政程序",color:"#3b82f6",keywords:["行政程序", "陳述意見", "聽證", "閱覽", "送達", "期日", "期間", "行政程序法", "告知", "通知", "公告"]},{name:"行政罰",color:"#f97316",keywords:["行政罰", "裁罰", "罰鍰", "沒入", "一行為不二罰", "故意", "過失", "行政秩序罰", "裁處", "處罰"]},{name:"行政執行",color:"#ef4444",keywords:["行政執行", "強制執行", "即時強制", "代履行", "怠金", "直接強制", "間接強制"]},{name:"訴願",color:"#f59e0b",keywords:["訴願", "訴願人", "訴願管轄", "訴願法", "訴願決定", "訴願機關"]},{name:"行政訴訟",color:"#eab308",keywords:["行政訴訟", "撤銷訴訟", "課予義務", "確認訴訟", "一般給付", "行政法院", "起訴"]},{name:"行政組織",color:"#22c55e",keywords:["行政機關", "管轄", "委任", "委託", "委辦", "公法人", "行政法人", "機關"]},{name:"地方自治",color:"#10b981",keywords:["地方自治", "自治條例", "自治規則", "地方制度", "直轄市", "自治事項", "委辦事項"]},{name:"法律原則",color:"#14b8a6",keywords:["比例原則", "信賴保護", "平等原則", "依法行政", "法律保留", "法律優位", "明確性原則", "誠信原則"]},{name:"裁量判斷",color:"#06b6d4",keywords:["裁量", "判斷餘地", "不確定法律概念", "裁量濫用", "裁量怠惰", "裁量基準", "自由裁量"]},{name:"公務員",color:"#0ea5e9",keywords:["公務員", "公務人員", "特別權力", "職務", "懲戒", "記過", "考績", "任用"]},{name:"國家賠償",color:"#64748b",keywords:["國家賠償", "損失補償", "徵收", "損害賠償", "賠償責任", "國賠", "特別犧牲"]},{name:"行政指導",color:"#84cc16",keywords:["行政指導", "行政計畫", "計畫確定", "指導", "非權力"]}],"faxu":[{name:"法律的概念",color:"#7c3aed",keywords:["法律的意義", "法律定義", "法律與道德", "規範", "社會規範", "法的意義", "成文法", "不成文法", "制定法"]},{name:"法律的分類",color:"#6d28d9",keywords:["公法", "私法", "社會法", "國際法", "實體法", "程序法", "強行法", "任意法", "普通法", "特別法"]},{name:"法源",color:"#4f46e5",keywords:["法源", "習慣", "判例", "法理", "條約", "慣例", "不文法", "法律淵源"]},{name:"法律的效力",color:"#2563eb",keywords:["效力", "法律效力", "時間效力", "空間效力", "人的效力", "屬地", "屬人", "溯及既往", "不溯及既往"]},{name:"法律的解釋",color:"#0891b2",keywords:["解釋", "文義解釋", "目的解釋", "體系解釋", "合憲解釋", "擴張解釋", "限縮解釋", "類推適用"]},{name:"法律的適用",color:"#0d9488",keywords:["法律適用", "特別法", "後法", "新法", "舊法", "衝突", "法律競合", "優先適用", "準用"]},{name:"權利與義務",color:"#059669",keywords:["權利", "義務", "公權利", "私權利", "形成權", "請求權", "抗辯權", "支配權", "人格權", "財產權"]},{name:"法律關係",color:"#16a34a",keywords:["法律關係", "主體", "客體", "法律事實", "法律行為", "事件", "權利主體", "義務主體"]},{name:"法律行為",color:"#65a30d",keywords:["法律行為", "意思表示", "行為能力", "意思能力", "瑕疵", "無效", "得撤銷", "代理", "無權代理", "表見代理"]},{name:"民法",color:"#ca8a04",keywords:["民法", "民事", "物權", "債權", "契約", "侵權", "親屬", "繼承", "時效", "所有權", "占有", "抵押", "保證", "買賣", "租賃"]},{name:"刑法",color:"#dc2626",keywords:["刑法", "刑事", "犯罪", "故意", "過失", "既遂", "未遂", "共犯", "正犯", "教唆", "幫助", "罪刑", "刑罰", "構成要件"]},{name:"憲法",color:"#db2777",keywords:["憲法", "基本權", "人權", "自由", "平等", "正當程序", "大法官", "釋憲", "修憲", "違憲", "國家機關", "立法院", "行政院"]},{name:"訴訟程序",color:"#9333ea",keywords:["訴訟", "訴訟程序", "起訴", "上訴", "再審", "管轄", "法院", "裁判", "判決", "裁定", "證據", "原告", "被告"]},{name:"責任與制裁",color:"#64748b",keywords:["責任", "制裁", "民事責任", "刑事責任", "行政責任", "賠償", "損害", "違法", "處罰"]},{name:"國際法",color:"#0ea5e9",keywords:["國際法", "條約", "國際習慣", "國際公法", "國際私法", "外交", "主權", "國籍", "引渡"]}],"adminsci":[{name:"行政學概念",color:"#0891b2",keywords:["行政", "公共行政", "行政學", "行政意義", "行政定義", "行政功能", "行政目標"]},{name:"組織理論",color:"#6366f1",keywords:["組織", "組織理論", "組織結構", "科層", "官僚", "韋伯", "層級", "分工", "正式組織", "非正式組織", "矩陣", "委員會"]},{name:"管理理論",color:"#8b5cf6",keywords:["管理", "科學管理", "泰勒", "費堯", "管理原則", "POSDCORB", "古立克", "行為科學", "霍桑", "人際關係", "系統理論", "權變理論"]},{name:"領導與激勵",color:"#a855f7",keywords:["領導", "領導理論", "領導風格", "激勵", "需求層次", "馬斯洛", "赫茲伯格", "雙因素", "期望理論", "X理論", "Y理論", "Z理論", "授權", "賦權"]},{name:"決策理論",color:"#3b82f6",keywords:["決策", "決策理論", "理性模型", "有限理性", "漸進主義", "混合掃描", "垃圾桶", "決策過程", "西蒙", "林布隆"]},{name:"溝通與協調",color:"#0ea5e9",keywords:["溝通", "協調", "橫向協調", "縱向協調", "正式溝通", "非正式溝通", "溝通障礙", "衝突管理"]},{name:"人事行政",color:"#22c55e",keywords:["人事", "人事行政", "文官", "功績制", "分類", "職位分類", "品位制", "考試", "任用", "銓敘", "考績", "訓練", "俸給", "退休"]},{name:"財務行政",color:"#16a34a",keywords:["財務", "預算", "財務行政", "公共預算", "編列", "審議", "決算", "會計", "審計", "採購", "績效預算", "零基預算", "PPBS"]},{name:"行政監督",color:"#f59e0b",keywords:["監督", "行政監督", "課責", "立法監督", "司法監督", "行政控制", "監察", "督導", "績效管理", "評估"]},{name:"公共政策",color:"#f97316",keywords:["公共政策", "政策", "政策分析", "政策制定", "政策執行", "政策評估", "政策終結", "議程設定", "政策規劃", "利害關係人"]},{name:"行政倫理",color:"#ef4444",keywords:["行政倫理", "倫理", "廉政", "貪腐", "利益衝突", "公務倫理", "道德", "行政責任", "課責", "中立"]},{name:"地方政府",color:"#10b981",keywords:["地方政府", "地方行政", "地方自治", "縣市", "鄉鎮", "區", "地方財政", "地方立法", "中央地方"]},{name:"政府改造",color:"#14b8a6",keywords:["政府改造", "行政革新", "新公共管理", "NPM", "治理", "電子化政府", "民營化", "委外", "績效", "顧客導向", "企業型政府"]},{name:"比較行政",color:"#06b6d4",keywords:["比較行政", "比較", "各國行政", "開發中國家", "行政文化", "行政生態", "官僚文化", "政治文化"]},{name:"非營利組織",color:"#84cc16",keywords:["非營利", "NPO", "NGO", "第三部門", "公民社會", "志願服務", "社會企業", "基金會", "協會"]}]};
+const SUBJECTS = [{"id":"adminlaw","name":"行政法","icon":"⚖️","color":"#4f7df3","color2":"#3a66d8","bg":"#f0f2f5","store":"al_stats","wstore":"al_wrong","dataVar":"DATA_ADMINLAW"},{"id":"faxu","name":"法學緒論","icon":"📖","color":"#7c3aed","color2":"#6d28d9","bg":"#f5f0ff","store":"fx_stats","wstore":"fx_wrong","dataVar":"DATA_FAXU"},{"id":"adminsci","name":"行政學","icon":"🏛️","color":"#0891b2","color2":"#0e7490","bg":"#f0f9ff","store":"as_stats","wstore":"as_wrong","dataVar":"DATA_ADMINSCI"}];
+const GROUPS_MAP = {"adminlaw":[{name:"行政處分",color:"#6366f1",keywords:["行政處分","授益處分","負擔處分","撤銷","廢止","無效","行政行為","構成要件","行政命令","法規命令","行政規則","職權命令"]},{name:"附款",color:"#8b5cf6",keywords:["附款","條件","期限","負擔","廢止權保留","停止條件","解除條件","不當聯結"]},{name:"行政契約",color:"#a855f7",keywords:["行政契約","雙務契約","行政協定","和解契約","私法契約"]},{name:"行政程序",color:"#3b82f6",keywords:["行政程序","陳述意見","聽證","閱覽","送達","期日","期間","行政程序法","告知","通知","公告"]},{name:"行政罰",color:"#f97316",keywords:["行政罰","裁罰","罰鍰","沒入","一行為不二罰","故意","過失","行政秩序罰","裁處","處罰"]},{name:"行政執行",color:"#ef4444",keywords:["行政執行","強制執行","即時強制","代履行","怠金","直接強制","間接強制"]},{name:"訴願",color:"#f59e0b",keywords:["訴願","訴願人","訴願管轄","訴願法","訴願決定","訴願機關"]},{name:"行政訴訟",color:"#eab308",keywords:["行政訴訟","撤銷訴訟","課予義務","確認訴訟","一般給付","行政法院","起訴"]},{name:"行政組織",color:"#22c55e",keywords:["行政機關","管轄","委任","委託","委辦","公法人","行政法人","機關"]},{name:"地方自治",color:"#10b981",keywords:["地方自治","自治條例","自治規則","地方制度","直轄市","自治事項","委辦事項"]},{name:"法律原則",color:"#14b8a6",keywords:["比例原則","信賴保護","平等原則","依法行政","法律保留","法律優位","明確性原則","誠信原則"]},{name:"裁量判斷",color:"#06b6d4",keywords:["裁量","判斷餘地","不確定法律概念","裁量濫用","裁量怠惰","裁量基準","自由裁量"]},{name:"公務員",color:"#0ea5e9",keywords:["公務員","公務人員","特別權力","職務","懲戒","記過","考績","任用"]},{name:"國家賠償",color:"#64748b",keywords:["國家賠償","損失補償","徵收","損害賠償","賠償責任","國賠","特別犧牲"]},{name:"行政指導",color:"#84cc16",keywords:["行政指導","行政計畫","計畫確定","指導","非權力"]}],"faxu":[{name:"法律的概念",color:"#7c3aed",keywords:["法律的意義","法律定義","法律與道德","規範","社會規範","法的意義","成文法","不成文法","制定法"]},{name:"法律的分類",color:"#6d28d9",keywords:["公法","私法","社會法","國際法","實體法","程序法","強行法","任意法","普通法","特別法"]},{name:"法源",color:"#4f46e5",keywords:["法源","習慣","判例","法理","條約","慣例","不文法","法律淵源"]},{name:"法律的效力",color:"#2563eb",keywords:["效力","法律效力","時間效力","空間效力","人的效力","屬地","屬人","溯及既往","不溯及既往"]},{name:"法律的解釋",color:"#0891b2",keywords:["解釋","文義解釋","目的解釋","體系解釋","合憲解釋","擴張解釋","限縮解釋","類推適用"]},{name:"法律的適用",color:"#0d9488",keywords:["法律適用","特別法","後法","新法","舊法","衝突","法律競合","優先適用","準用"]},{name:"權利與義務",color:"#059669",keywords:["權利","義務","公權利","私權利","形成權","請求權","抗辯權","支配權","人格權","財產權"]},{name:"法律關係",color:"#16a34a",keywords:["法律關係","主體","客體","法律事實","法律行為","事件","權利主體","義務主體"]},{name:"法律行為",color:"#65a30d",keywords:["法律行為","意思表示","行為能力","意思能力","瑕疵","無效","得撤銷","代理","無權代理","表見代理"]},{name:"民法",color:"#ca8a04",keywords:["民法","民事","物權","債權","契約","侵權","親屬","繼承","時效","所有權","占有","抵押","保證","買賣","租賃"]},{name:"刑法",color:"#dc2626",keywords:["刑法","刑事","犯罪","故意","過失","既遂","未遂","共犯","正犯","教唆","幫助","罪刑","刑罰","構成要件"]},{name:"憲法",color:"#db2777",keywords:["憲法","基本權","人權","自由","平等","正當程序","大法官","釋憲","修憲","違憲","國家機關","立法院","行政院"]},{name:"訴訟程序",color:"#9333ea",keywords:["訴訟","訴訟程序","起訴","上訴","再審","管轄","法院","裁判","判決","裁定","證據","原告","被告"]},{name:"責任與制裁",color:"#64748b",keywords:["責任","制裁","民事責任","刑事責任","行政責任","賠償","損害","違法","處罰"]},{name:"國際法",color:"#0ea5e9",keywords:["國際法","條約","國際習慣","國際公法","國際私法","外交","主權","國籍","引渡"]}],"adminsci":[{name:"行政學概念",color:"#0891b2",keywords:["行政","公共行政","行政學","行政意義","行政定義","行政功能","行政目標"]},{name:"組織理論",color:"#6366f1",keywords:["組織","組織理論","組織結構","科層","官僚","韋伯","層級","分工","正式組織","非正式組織","矩陣","委員會"]},{name:"管理理論",color:"#8b5cf6",keywords:["管理","科學管理","泰勒","費堯","管理原則","POSDCORB","古立克","行為科學","霍桑","人際關係","系統理論","權變理論"]},{name:"領導與激勵",color:"#a855f7",keywords:["領導","領導理論","領導風格","激勵","需求層次","馬斯洛","赫茲伯格","雙因素","期望理論","X理論","Y理論","Z理論","授權","賦權"]},{name:"決策理論",color:"#3b82f6",keywords:["決策","決策理論","理性模型","有限理性","漸進主義","混合掃描","垃圾桶","決策過程","西蒙","林布隆"]},{name:"溝通與協調",color:"#0ea5e9",keywords:["溝通","協調","橫向協調","縱向協調","正式溝通","非正式溝通","溝通障礙","衝突管理"]},{name:"人事行政",color:"#22c55e",keywords:["人事","人事行政","文官","功績制","分類","職位分類","品位制","考試","任用","銓敘","考績","訓練","俸給","退休"]},{name:"財務行政",color:"#16a34a",keywords:["財務","預算","財務行政","公共預算","編列","審議","決算","會計","審計","採購","績效預算","零基預算","PPBS"]},{name:"行政監督",color:"#f59e0b",keywords:["監督","行政監督","課責","立法監督","司法監督","行政控制","監察","督導","績效管理","評估"]},{name:"公共政策",color:"#f97316",keywords:["公共政策","政策","政策分析","政策制定","政策執行","政策評估","政策終結","議程設定","政策規劃","利害關係人"]},{name:"行政倫理",color:"#ef4444",keywords:["行政倫理","倫理","廉政","貪腐","利益衝突","公務倫理","道德","行政責任","課責","中立"]},{name:"地方政府",color:"#10b981",keywords:["地方政府","地方行政","地方自治","縣市","鄉鎮","區","地方財政","地方立法","中央地方"]},{name:"政府改造",color:"#14b8a6",keywords:["政府改造","行政革新","新公共管理","NPM","治理","電子化政府","民營化","委外","績效","顧客導向","企業型政府"]},{name:"比較行政",color:"#06b6d4",keywords:["比較行政","比較","各國行政","開發中國家","行政文化","行政生態","官僚文化","政治文化"]},{name:"非營利組織",color:"#84cc16",keywords:["非營利","NPO","NGO","第三部門","公民社會","志願服務","社會企業","基金會","協會"]}]};
 const DATA_MAP = {
   adminlaw: typeof DATA_ADMINLAW!=='undefined'?DATA_ADMINLAW:[],
   faxu:     typeof DATA_FAXU!=='undefined'?DATA_FAXU:[],
@@ -679,28 +706,24 @@ function initSubject(id){
   curSubj   = SUBJECTS.find(s=>s.id===id);
   curGroups = GROUPS_MAP[id];
 
-  // CSS 變數
   document.documentElement.style.setProperty('--accent', curSubj.color);
   document.documentElement.style.setProperty('--bg', curSubj.bg);
-  document.body.style.background = curSubj.bg;
+  if (!document.body.classList.contains('dark')) document.body.style.background = curSubj.bg;
 
-  // 頂部按鈕樣式
   document.querySelectorAll('.subj-btn').forEach(b=>{
     const active = b.dataset.id===id;
     b.classList.toggle('active',active);
     b.style.background = active ? curSubj.color : '';
-    b.style.color      = active ? '#fff' : '';
+    b.style.setProperty('color', active ? '#fff' : '', active ? 'important' : '');
   });
 
-  // 底部 nav 顏色
   document.querySelectorAll('.nav-btn.active').forEach(b=>{b.style.color=curSubj.color});
   document.querySelector('.nav-bar').style.setProperty('--nb-color', curSubj.color);
 
-  // 標題
   document.getElementById('page-title').textContent = curSubj.icon+' '+curSubj.name+'題庫';
   document.getElementById('btn-start').style.background = curSubj.color;
+  document.getElementById('mock-btn-start').style.background = curSubj.color;
 
-  // 處理題目資料
   const raw = DATA_MAP[id]||[];
   allQ = raw.filter(q=>
     q.question&&q.question.length>5&&
@@ -709,12 +732,15 @@ function initSubject(id){
   ).map(q=>({...q,groups:tagQ(q),id:qHash(q)}));
   document.getElementById('stat-total-q').textContent = allQ.length;
 
-  // 年度選單
-  const sel = document.getElementById('filter-exam');
-  sel.innerHTML = '<option value="all">全部考試</option>';
-  [...new Set(allQ.map(q=>{const m=q.exam.match(/^(\d+)年/);return m?m[1]+'年':null}).filter(Boolean))]
-    .sort((a,b)=>b.localeCompare(a))
-    .forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y+' 考試';sel.appendChild(o)});
+  // 年度選單（練習 + 模擬考共用）
+  const yearOpts = [...new Set(allQ.map(q=>{const m=q.exam.match(/^(\d+)年/);return m?m[1]+'年':null}).filter(Boolean))].sort((a,b)=>b.localeCompare(a));
+  [document.getElementById('filter-exam'), document.getElementById('mock-filter-exam')].forEach(sel=>{
+    if(!sel)return;
+    sel.innerHTML = '<option value="all">全部考試</option>';
+    yearOpts.forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y+' 考試';sel.appendChild(o)});
+  });
+  const mockPoolEl = document.getElementById('mock-pool-count');
+  if(mockPoolEl) mockPoolEl.textContent = allQ.length;
 
   updateStats();
   if(curPage==='wrong')renderWrong();
@@ -752,7 +778,6 @@ function loadWQ(){
     const raw=localStorage.getItem(curSubj.wstore);
     if(!raw)return{};
     const parsed=JSON.parse(raw);
-    // 相容新格式 {data:'...'} 和舊格式 {...}
     if(parsed.data)return JSON.parse(parsed.data);
     return parsed;
   }catch{return{}}
@@ -766,6 +791,28 @@ function updateStats(){
 
 // ── 答題 ────────────────────────────────────────────────
 let quizQ=[],idx=0,score=0,answered=false,sWrong={},sTotal={},lastF='all',lastN=20;
+let _timerInterval=null,_timerSec=30;
+function _startTimer(q){
+  clearInterval(_timerInterval);
+  _timerSec=30;
+  const el=document.getElementById('q-timer');
+  el.className='q-timer';el.textContent=_timerSec;
+  _timerInterval=setInterval(()=>{
+    _timerSec--;
+    el.textContent=_timerSec;
+    el.className='q-timer'+(_timerSec<=10?' danger':_timerSec<=20?' warn':'');
+    if(_timerSec<=0){
+      clearInterval(_timerInterval);
+      if(!answered){
+        const od=document.getElementById('options');
+        const firstBtn=od.querySelector('.option-btn');
+        if(firstBtn) pick('__timeout__',q.answer,firstBtn,od,q);
+      }
+    }
+  },1000);
+}
+function _stopTimer(){clearInterval(_timerInterval);}
+
 function startQuiz(){
   const f=document.getElementById('filter-exam').value;
   const n=parseInt(document.getElementById('num-questions').value)||20;
@@ -779,7 +826,13 @@ function startQuiz(){
   document.getElementById('progress-fill').style.background=curSubj.color;
   renderQ();
 }
-function quitQuiz(){if(idx>0&&!confirm('確定要離開？'))return;document.getElementById('quiz-overlay').style.display='none'}
+
+function quitQuiz(){
+  if(idx>0&&!confirm('確定要離開？'))return;
+  document.getElementById('quiz-overlay').style.display='none';
+  if(isMockExam){_stopMockTimer();isMockExam=false;document.getElementById('mock-exam-timer').style.display='none';document.getElementById('q-timer').style.display='flex';}
+}
+
 function renderQ(){
   answered=false;const q=quizQ[idx],total=quizQ.length;
   document.getElementById('q-counter').textContent='第 '+(idx+1)+' / '+total+' 題';
@@ -804,16 +857,18 @@ function renderQ(){
   });
   document.getElementById('feedback').style.display='none';
   document.getElementById('btn-next').style.display='none';
+  if(isMockExam){ clearInterval(_timerInterval); } else { _startTimer(q); }
 }
+
 function pick(chosen,correct,btn,od,q){
-  if(answered)return;answered=true;
+  if(answered)return;answered=true;_stopTimer();
   const ok=chosen===correct;
   if(ok)score++;
   else{
     q.groups.forEach(g=>{sWrong[g]=(sWrong[g]||0)+1});
     const wq=loadWQ();
     if(!wq[q.id])wq[q.id]={question:q.question,options:q.options,answer:q.answer,exam:q.exam,groups:q.groups,wrongCount:0,note:''};
-    wq[q.id].wrongCount++;saveWQ(wq);
+    wq[q.id].wrongCount++;wq[q.id].lastWrong=Date.now();saveWQ(wq);
   }
   od.querySelectorAll('.option-btn').forEach(b=>{b.disabled=true;if(b.querySelector('.option-label').textContent===correct)b.classList.add(ok?'correct':'show-correct')});
   if(!ok)btn.classList.add('wrong');
@@ -823,9 +878,12 @@ function pick(chosen,correct,btn,od,q){
   const nx=document.getElementById('btn-next');nx.style.display='block';
   nx.textContent=idx+1<quizQ.length?'下一題 →':'查看結果';
 }
+
 function nextQuestion(){idx++;idx>=quizQ.length?showResult():renderQ()}
+
 function showResult(){
   document.getElementById('quiz-overlay').style.display='none';
+  if(isMockExam){_stopMockTimer();isMockExam=false;document.getElementById('mock-exam-timer').style.display='none';document.getElementById('q-timer').style.display='flex';}
   const s=loadS();s.sessions=(s.sessions||0)+1;s.totalAnswered=(s.totalAnswered||0)+quizQ.length;s.totalCorrect=(s.totalCorrect||0)+score;
   Object.entries(sWrong).forEach(([g,w])=>{s.wrongByGroup[g]=(s.wrongByGroup[g]||0)+w});
   Object.entries(sTotal).forEach(([g,t])=>{s.totalByGroup[g]=(s.totalByGroup[g]||0)+t});
@@ -842,6 +900,7 @@ function showResult(){
   drawRadar('session-radar',sWrong,sTotal,240);
   drawWeak('session-weak',sWrong,sTotal);
 }
+
 function restartSame(){document.getElementById('result-overlay').style.display='none';document.getElementById('filter-exam').value=lastF;document.getElementById('num-questions').value=lastN;startQuiz()}
 function goHome(){document.getElementById('result-overlay').style.display='none';showPage('practice')}
 
@@ -861,7 +920,7 @@ function renderWrong(){
   const list=document.getElementById('wrong-list');list.innerHTML='';
   const filtered=wrongGroupFilter==='all'?entries:entries.filter(q=>q.groups.includes(wrongGroupFilter));
   if(!filtered.length){list.innerHTML='<div class="empty-msg">'+(entries.length?'這個分類沒有錯題 🎉':'還沒有錯題記錄<br>答錯的題目會自動收錄到這裡 📌')+'</div>';return}
-  filtered.sort((a,b)=>b.wrongCount-a.wrongCount).forEach(q=>{
+  filtered.sort((a,b)=>(b.lastWrong||0)-(a.lastWrong||0)).forEach(q=>{
     const card=document.createElement('div');card.className='wq-card';
     const yr=q.exam.match(/^(\d+年)/),subj=q.exam.replace(/.*[：:]\s*/,'').trim();
     const tagsHtml=q.groups.map(g=>{const grp=curGroups.find(x=>x.name===g)||{color:'#94a3b8'};return'<span class="kw-tag" style="background:'+grp.color+'18;color:'+grp.color+';border:1px solid '+grp.color+'44">'+g+'</span>'}).join('');
@@ -938,7 +997,7 @@ function drawWeak(cid,wg,tg,append){
   });
 }
 
-// ── Toast 通知 ───────────────────────────────────────────
+// ── Toast ────────────────────────────────────────────────
 function showToast(msg){
   const t=document.getElementById('toast');
   if(!t)return;
@@ -958,9 +1017,71 @@ function toggleDark(){
   document.getElementById('dark-toggle').textContent = isDark ? '☀️' : '🌙';
 }
 
+// ── 模擬考 ───────────────────────────────────────────────
+let isMockExam = false;
+let mockTimerInterval = null;
+let mockTimerSec = 3600;
+
+function updateMockPoolCount(){
+  const f = document.getElementById('mock-filter-exam').value;
+  const cnt = f==='all' ? allQ.length : allQ.filter(q=>q.exam.startsWith(f)).length;
+  const el = document.getElementById('mock-pool-count');
+  if(el) el.textContent = cnt;
+}
+
+function startMockExam(){
+  const f = document.getElementById('mock-filter-exam').value;
+  let pool = f==='all' ? allQ : allQ.filter(q=>q.exam.startsWith(f));
+  if(!pool.length){alert('該範圍沒有題目');return}
+  if(pool.length < 10){alert('題目數量不足（需至少 10 題）');return}
+  isMockExam = true;
+  quizQ = [...pool].sort(()=>Math.random()-.5).slice(0, Math.min(50, pool.length));
+  idx=0; score=0; sWrong={}; sTotal={};
+  document.getElementById('quiz-overlay').style.background = curSubj.bg;
+  document.getElementById('quiz-overlay').style.display = 'block';
+  document.getElementById('progress-fill').style.background = curSubj.color;
+  document.getElementById('mock-exam-timer').style.display = 'flex';
+  document.getElementById('q-timer').style.display = 'none';
+  _startMockTimer();
+  renderQ();
+}
+
+function _startMockTimer(){
+  mockTimerSec = 3600;
+  clearInterval(mockTimerInterval);
+  _updateMockTimerDisplay();
+  mockTimerInterval = setInterval(()=>{
+    mockTimerSec--;
+    _updateMockTimerDisplay();
+    if(mockTimerSec <= 0){
+      clearInterval(mockTimerInterval);
+      if(!answered){
+        const od = document.getElementById('options');
+        od.querySelectorAll('.option-btn').forEach(b=>b.disabled=true);
+      }
+      showToast('⏰ 時間到，自動交卷！');
+      setTimeout(showResult, 800);
+    }
+  },1000);
+}
+
+function _updateMockTimerDisplay(){
+  const m = Math.floor(mockTimerSec/60);
+  const s = mockTimerSec % 60;
+  const el = document.getElementById('mock-exam-timer');
+  if(!el) return;
+  el.textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  el.className = 'mock-exam-timer'+(mockTimerSec<=300?' danger':mockTimerSec<=600?' warn':'');
+  el.style.display = 'flex';
+}
+
+function _stopMockTimer(){
+  clearInterval(mockTimerInterval);
+}
+
 // ── 啟動 ────────────────────────────────────────────────
 initDarkMode();
-initSubject(SUBJECTS[0].id);
+initSubject(window.__initSubj || SUBJECTS[0].id);
 </script>
 </body>
 </html>
