@@ -1,0 +1,22 @@
+# Claude Code 工作區
+.claude/
+
+# Python 快取
+__pycache__/
+*.pyc
+
+# 原始題庫資料（build.py 讀取用，不上傳）
+行政法題庫/
+法緒題庫/
+行政學題庫/
+
+# 上課教材
+法緒上課章節.pdf
+法緒上課章節_文字.txt
+
+
+# 原始 icon（已有壓縮版）
+icon_original.png
+
+# 手動上傳用資料夾（不走 git）
+上傳/

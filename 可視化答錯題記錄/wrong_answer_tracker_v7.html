@@ -1,0 +1,696 @@
+
+<meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.app{--bg0:#ffffff;--bg1:#f5f5f2;--bg2:#ebebeb;--border:rgba(0,0,0,0.12);--border2:rgba(0,0,0,0.22);--text1:#1a1a1a;--text2:#555;--text3:#999;padding:1.25rem;border-radius:14px;transition:background .3s,color .3s;background:var(--bg0)}
+.app.dark{--bg0:#1a1a1e;--bg1:#242428;--bg2:#2e2e33;--border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.2);--text1:#f0f0f0;--text2:#aaa;--text3:#666}
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
+.app-title{font-size:17px;font-weight:500;color:var(--text1)}
+.mode-toggle{display:flex;align-items:center;gap:6px;cursor:pointer}
+.toggle-track{width:44px;height:24px;border-radius:12px;background:var(--bg2);border:0.5px solid var(--border2);position:relative;transition:background .3s}
+.app.dark .toggle-track{background:#534AB7}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .25s;box-shadow:0 1px 3px rgba(0,0,0,0.25)}
+.app.dark .toggle-thumb{left:23px}
+.tab-row{display:flex;gap:6px}
+.tab{font-size:12px;padding:4px 12px;border:0.5px solid var(--border);border-radius:8px;cursor:pointer;background:transparent;color:var(--text2);transition:background .2s}
+.tab.active{background:var(--bg2);color:var(--text1);font-weight:500}
+.summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:1.25rem}
+.metric{background:var(--bg1);border-radius:8px;padding:.8rem .9rem;border:0.5px solid var(--border);position:relative;overflow:hidden}
+.mlabel{font-size:11px;color:var(--text2);margin-bottom:3px}
+.mval{font-size:21px;font-weight:500;color:var(--text1)}
+.msub{font-size:11px;color:var(--text3);margin-top:2px}
+.metric-correction{border-color:rgba(29,158,117,0.35);background:var(--bg1)}
+.correction-bar{position:absolute;bottom:0;left:0;height:3px;background:#1D9E75;border-radius:0 0 8px 8px;transition:width .5s ease}
+.input-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:1.1rem;padding:.7rem .9rem;background:var(--bg1);border-radius:8px;border:0.5px solid var(--border)}
+.input-row label{font-size:12px;color:var(--text2);white-space:nowrap}
+.input-row select,.input-row input{font-size:13px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:7px;background:var(--bg0);color:var(--text1);outline:none}
+.btn{font-size:12px;padding:5px 13px;cursor:pointer;border-radius:7px;border:0.5px solid var(--border2);background:transparent;color:var(--text1);transition:background .15s,border-color .15s}
+.btn:hover{background:var(--bg2)}
+.btn-primary{background:#534AB7;color:#fff;border-color:#534AB7}
+.btn-primary:hover{background:#3C3489}
+.btn-correction{background:#1D9E75;color:#fff;border-color:#1D9E75}
+.btn-correction:hover{background:#0F6E56}
+.btn-danger{background:#E24B4A;color:#fff;border-color:#E24B4A;animation:shake .25s ease}
+.btn-danger:hover{background:#A32D2D}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.section-label{font-size:11px;font-weight:500;color:var(--text2);margin-bottom:.65rem;letter-spacing:.04em;text-transform:uppercase}
+.subject-list{display:flex;flex-direction:column;gap:7px;margin-bottom:1.25rem}
+.subject-row{display:grid;grid-template-columns:88px 1fr 60px 88px 88px 60px;align-items:center;gap:8px;padding:.55rem .75rem;background:var(--bg0);border:0.5px solid var(--border);border-radius:8px;transition:background .2s}
+.subject-row:hover{background:var(--bg1)}
+.subj-name{font-size:13px;font-weight:500;color:var(--text1)}
+.bar-wrap{height:7px;background:var(--bg2);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .4s ease}
+.subj-counts{font-size:12px;color:var(--text2);text-align:right}
+.subj-rate{font-size:12px;font-weight:500;text-align:right}
+.subj-correction{font-size:12px;text-align:right;color:#1D9E75;font-weight:500}
+.reset-cell{display:flex;justify-content:flex-end}
+.reset-btn{height:26px;padding:0 8px;display:flex;align-items:center;gap:4px;border:0.5px solid var(--border);border-radius:7px;cursor:pointer;background:transparent;color:var(--text3);font-size:11px;white-space:nowrap;transition:color .15s,background .15s,border-color .2s}
+.reset-btn:hover{background:var(--bg2);color:var(--text2)}
+.reset-btn.confirm{background:#fff1f1;color:#A32D2D;border-color:#E24B4A;font-weight:500}
+.app.dark .reset-btn.confirm{background:#3a1a1a;color:#f09595;border-color:#E24B4A}
+.chart-section{margin-top:.25rem}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;flex-wrap:wrap;gap:6px}
+.chart-tabs{display:flex;gap:5px}
+.chart-tab{font-size:11px;padding:3px 10px;border:0.5px solid var(--border);border-radius:6px;cursor:pointer;background:transparent;color:var(--text2);transition:background .15s}
+.chart-tab.active{background:var(--bg2);color:var(--text1);font-weight:500}
+.legend-grid{display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:.65rem}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none;transition:opacity .2s}
+.leg-item.muted{opacity:.3}
+.leg-line{width:18px;height:2px;border-radius:1px}
+.chart-wrap{position:relative;width:100%;height:220px}
+.history-list{display:flex;flex-direction:column;gap:6px;margin-top:.25rem}
+.history-item{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--text2);padding:.5rem .75rem;border:0.5px solid var(--border);border-radius:8px;background:var(--bg0)}
+.hi-subj{font-weight:500;color:var(--text1);min-width:80px}
+.hi-time{margin-left:auto;color:var(--text3)}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:500}
+.badge-w{background:#FCEBEB;color:#A32D2D}
+.badge-c{background:#EAF3DE;color:#3B6D11}
+.badge-r{background:#FAEEDA;color:#854F0B}
+.badge-cor{background:#E1F5EE;color:#0F6E56}
+.empty{font-size:13px;color:var(--text3);text-align:center;padding:1.5rem 0}
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:var(--bg1);border:0.5px solid var(--border2);border-radius:8px;padding:.45rem 1.1rem;font-size:13px;color:var(--text1);opacity:0;transition:opacity .25s;pointer-events:none;z-index:999;white-space:nowrap}
+.toast.show{opacity:1}
+.nb-form{display:flex;flex-direction:column;gap:8px;margin-bottom:1.1rem;padding:.85rem .9rem;background:var(--bg1);border-radius:8px;border:0.5px solid var(--border)}
+.nb-form-row{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.nb-form-row label{font-size:12px;color:var(--text2);white-space:nowrap;padding-top:5px;min-width:52px}
+.nb-form-row select,.nb-form-row input,.nb-form-row textarea{font-size:13px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:7px;background:var(--bg0);color:var(--text1);outline:none;flex:1}
+.nb-form-row textarea{resize:vertical;min-height:60px;font-family:inherit}
+.nb-actions{display:flex;gap:8px;justify-content:flex-end}
+.nb-filter-row{display:flex;gap:8px;align-items:center;margin-bottom:.75rem;flex-wrap:wrap}
+.nb-filter-row select{font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:7px;background:var(--bg0);color:var(--text1);outline:none}
+.nb-filter-row label{font-size:12px;color:var(--text2)}
+.nb-item{border:0.5px solid var(--border);border-radius:9px;background:var(--bg0);padding:.75rem .9rem;display:flex;flex-direction:column;gap:6px;transition:background .2s}
+.nb-item:hover{background:var(--bg1)}
+.nb-item.corrected{border-left:3px solid #1D9E75}
+.nb-item-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nb-item-subj{font-size:12px;font-weight:600;color:#534AB7;background:#EEEDFa;border-radius:6px;padding:2px 8px}
+.app.dark .nb-item-subj{background:#2a2760;color:#a09de8}
+.nb-item-date{font-size:11px;color:var(--text3);margin-left:auto}
+.nb-item-q{font-size:13px;color:var(--text1);line-height:1.55;white-space:pre-wrap}
+.nb-item-meta{display:flex;gap:14px;flex-wrap:wrap}
+.nb-meta-pair{font-size:12px;color:var(--text2)}
+.nb-meta-pair strong{color:var(--text1)}
+.nb-item-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:2px}
+.nb-corrected-badge{font-size:11px;color:#1D9E75;font-weight:500;display:flex;align-items:center;gap:3px}
+.nb-list{display:flex;flex-direction:column;gap:8px}
+.nb-search{font-size:13px;padding:5px 10px;border:0.5px solid var(--border2);border-radius:7px;background:var(--bg0);color:var(--text1);outline:none;flex:1}
+.anki-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:.6rem .9rem;background:var(--bg1);border-radius:8px;border:0.5px solid var(--border);margin-bottom:.9rem}
+.anki-bar label{font-size:12px;color:var(--text2);white-space:nowrap}
+.anki-bar input{font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:7px;background:var(--bg0);color:var(--text1);outline:none;width:160px}
+.anki-status{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:500}
+.anki-status.ok{background:#EAF3DE;color:#3B6D11}
+.anki-status.err{background:#FCEBEB;color:#A32D2D}
+.btn-anki{font-size:11px;padding:3px 10px;cursor:pointer;border-radius:7px;border:0.5px solid #D4A017;background:#FFF8E6;color:#7A4F00;transition:background .15s}
+.btn-anki:hover{background:#FFE9A0}
+.app.dark .btn-anki{background:#3a2e00;color:#FFD566;border-color:#7A5F00}
+</style>
+
+<div class="app" id="app">
+<div class="toast" id="toast"></div>
+<div class="top-bar">
+  <span class="app-title">答題錯題統計</span>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div class="mode-toggle" onclick="toggleDark()">
+      <i class="ti ti-sun" style="font-size:15px;color:var(--text2)" aria-hidden="true"></i>
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      <i class="ti ti-moon" style="font-size:15px;color:var(--text2)" aria-hidden="true"></i>
+    </div>
+    <div class="tab-row">
+      <button class="tab active" onclick="switchView('stats')">統計總覽</button>
+      <button class="tab" onclick="switchView('log')">答題記錄</button>
+      <button class="tab" onclick="switchView('notebook')">錯題賺錢</button>
+    </div>
+  </div>
+</div>
+
+<div id="viewStats">
+  <div class="summary-grid" id="summaryGrid"></div>
+
+  <div class="input-row">
+    <label>科目</label>
+    <select id="selSubj"></select>
+    <label>答題數</label>
+    <input type="number" id="inTotal" min="1" max="200" value="10" style="width:60px">
+    <label>錯題數</label>
+    <input type="number" id="inWrong" min="0" max="200" value="3" style="width:60px">
+    <button class="btn btn-primary" onclick="addEntry()"><i class="ti ti-plus" aria-hidden="true"></i> 新增</button>
+    <label style="margin-left:6px">訂正數</label>
+    <input type="number" id="inCorrection" min="1" max="200" value="1" style="width:60px">
+    <button class="btn btn-correction" onclick="addCorrection()"><i class="ti ti-check" aria-hidden="true"></i> 訂正</button>
+    <button class="btn" id="resetAllBtn" onclick="handleResetAll()" style="margin-left:auto"><i class="ti ti-refresh" aria-hidden="true"></i> <span id="resetAllLabel">全部重置</span></button>
+  </div>
+
+  <p class="section-label">各科目錯題率 &nbsp;<span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">— 點 ↺ 重置單科</span></p>
+  <div class="subject-list" id="subjList"></div>
+
+  <div class="chart-section">
+    <div class="chart-header">
+      <p class="section-label" style="margin-bottom:0">每日答題量（各科）</p>
+      <div class="chart-tabs">
+        <button class="chart-tab active" onclick="setChartMode('total')">答題數</button>
+        <button class="chart-tab" onclick="setChartMode('wrong')">錯題數</button>
+        <button class="chart-tab" onclick="setChartMode('correction')">訂正數</button>
+      </div>
+    </div>
+    <div class="legend-grid" id="legendGrid"></div>
+    <div class="chart-wrap"><canvas id="lineChart" role="img" aria-label="每日各科答題量折線圖"></canvas></div>
+  </div>
+</div>
+
+<div id="viewLog" style="display:none">
+  <div class="history-list" id="historyList"></div>
+</div>
+
+<div id="viewNotebook" style="display:none">
+  <div class="nb-form">
+    <div class="nb-form-row">
+      <label>科目</label>
+      <select id="nbSubj"></select>
+    </div>
+    <div class="nb-form-row">
+      <label>題目</label>
+      <textarea id="nbQuestion" placeholder="輸入題目內容（必填）"></textarea>
+    </div>
+    <div class="nb-form-row">
+      <label>正確答案</label>
+      <input type="text" id="nbCorrect" placeholder="（選填）">
+      <label style="margin-left:8px">我的答案</label>
+      <input type="text" id="nbMine" placeholder="（選填）">
+    </div>
+    <div class="nb-form-row">
+      <label>備註</label>
+      <input type="text" id="nbNote" placeholder="重點提示、解析等（選填）">
+    </div>
+    <div class="nb-actions">
+      <button id="nbSaveBtn" class="btn btn-primary" onclick="addNbItem()"><i class="ti ti-plus" aria-hidden="true"></i> 儲存錯題</button>
+    </div>
+  </div>
+
+  <div class="anki-bar">
+    <label>🃏 Anki 牌組</label>
+    <input type="text" id="ankiDeck" placeholder="牌組名稱（預設 Default）">
+    <button class="btn btn-anki" onclick="ankiCheckConnect()" id="ankiCheckBtn">測試連線</button>
+    <span class="anki-status" id="ankiStatus" style="display:none"></span>
+    <button class="btn btn-anki" onclick="ankiPushAll()" style="margin-left:auto">全部推送</button>
+    <button class="btn btn-anki" onclick="ankiPullSync()">從 Anki 同步 ↓</button>
+  </div>
+
+  <div class="nb-filter-row">
+    <input class="nb-search" id="nbSearch" placeholder="搜尋題目內容…" oninput="renderNotebook()">
+    <label>科目</label>
+    <select id="nbFilter" onchange="renderNotebook()"><option value="">全部</option></select>
+    <label style="margin-left:4px">狀態</label>
+    <select id="nbStatusFilter" onchange="renderNotebook()">
+      <option value="">全部</option>
+      <option value="pending">未訂正</option>
+      <option value="corrected">已訂正</option>
+    </select>
+    <span id="nbCount" style="margin-left:auto;font-size:12px;color:var(--text3)"></span>
+  </div>
+
+  <div class="nb-list" id="nbList"></div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const SUBJECTS=['國文','英文','法學緒論','憲法','行政法','行政學','政治學'];
+const COLORS=['#534AB7','#1D9E75','#D85A30','#3266ad','#D4537E','#BA7517','#639922'];
+
+let data={};let history=[];let dailyLog={};let lineChart=null;
+let isDark=false;let chartMode='total';let mutedSubjs=new Set();
+let pending=null;let nbItems=[];
+const CONFIRM_MS=3000;
+
+SUBJECTS.forEach(s=>{data[s]={total:0,wrong:0,correction:0};});
+const sel=document.getElementById('selSubj');
+const nbSubjSel=document.getElementById('nbSubj');
+const nbFilterSel=document.getElementById('nbFilter');
+SUBJECTS.forEach(s=>{
+  const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);
+  const o2=o.cloneNode(true);nbSubjSel.appendChild(o2);
+  const o3=o.cloneNode(true);nbFilterSel.appendChild(o3);
+});
+
+function todayKey(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');}
+function fmtLabel(s){const p=s.split('-');return p[1]+'/'+p[2];}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+function toggleDark(){isDark=!isDark;document.getElementById('app').classList.toggle('dark',isDark);render();}
+function setChartMode(m){chartMode=m;document.querySelectorAll('.chart-tab').forEach((t,i)=>t.classList.toggle('active',['total','wrong','correction'][i]===m));renderChart();}
+function toggleSubj(s){if(mutedSubjs.has(s))mutedSubjs.delete(s);else mutedSubjs.add(s);renderLegend();renderChart();}
+function switchView(v){
+  document.getElementById('viewStats').style.display=v==='stats'?'block':'none';
+  document.getElementById('viewLog').style.display=v==='log'?'block':'none';
+  document.getElementById('viewNotebook').style.display=v==='notebook'?'block':'none';
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['stats','log','notebook'][i]===v));
+  if(v==='notebook')renderNotebook();
+}
+
+function cancelPending(){
+  if(!pending)return;
+  clearTimeout(pending.timer);
+  const prev=pending;pending=null;
+  if(prev.type==='single'){
+    const btn=document.getElementById('rbtn-'+prev.subj);
+    if(btn){btn.classList.remove('confirm');btn.innerHTML='<i class="ti ti-refresh" aria-hidden="true"></i>';}
+  } else {
+    const btn=document.getElementById('resetAllBtn');
+    const lbl=document.getElementById('resetAllLabel');
+    if(btn){btn.classList.remove('btn-danger');lbl.textContent='全部重置';}
+  }
+}
+
+function handleResetAll(){
+  if(pending&&pending.type==='all'){clearTimeout(pending.timer);pending=null;doResetAll();return;}
+  cancelPending();
+  const btn=document.getElementById('resetAllBtn');const lbl=document.getElementById('resetAllLabel');
+  btn.classList.add('btn-danger');lbl.textContent='確定清除？';
+  const timer=setTimeout(()=>{btn.classList.remove('btn-danger');lbl.textContent='全部重置';pending=null;},CONFIRM_MS);
+  pending={type:'all',timer};
+}
+
+function handleResetSubject(subj){
+  const btn=document.getElementById('rbtn-'+subj);
+  if(pending&&pending.type==='single'&&pending.subj===subj){clearTimeout(pending.timer);pending=null;doResetSubject(subj);return;}
+  cancelPending();
+  btn.classList.add('confirm');
+  btn.innerHTML='<i class="ti ti-alert-triangle" style="font-size:12px" aria-hidden="true"></i> 確定？';
+  const timer=setTimeout(()=>{btn.classList.remove('confirm');btn.innerHTML='<i class="ti ti-refresh" aria-hidden="true"></i>';pending=null;},CONFIRM_MS);
+  pending={type:'single',subj,timer};
+}
+
+function doResetSubject(subj){
+  data[subj]={total:0,wrong:0,correction:0};
+  Object.keys(dailyLog).forEach(dk=>{if(dailyLog[dk][subj])delete dailyLog[dk][subj];});
+  const ts=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  history.unshift({subj,ts,type:'reset'});
+  showToast(subj+' 已重置');render();
+}
+
+function doResetAll(){
+  SUBJECTS.forEach(s=>{data[s]={total:0,wrong:0,correction:0};});
+  history=[];dailyLog={};mutedSubjs=new Set();
+  showToast('已全部重置');render();
+}
+
+function ensureDailySubj(dk,subj){
+  if(!dailyLog[dk])dailyLog[dk]={};
+  if(!dailyLog[dk][subj])dailyLog[dk][subj]={total:0,wrong:0,correction:0};
+}
+
+function addEntry(){
+  cancelPending();
+  const subj=sel.value;
+  const total=parseInt(document.getElementById('inTotal').value)||0;
+  const wrong=parseInt(document.getElementById('inWrong').value)||0;
+  if(total<=0){alert('答題數需大於 0');return;}
+  if(wrong>total){alert('錯題數不能超過答題數');return;}
+  data[subj].total+=total;data[subj].wrong+=wrong;
+  const dk=todayKey();ensureDailySubj(dk,subj);
+  dailyLog[dk][subj].total+=total;dailyLog[dk][subj].wrong+=wrong;
+  const ts=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  history.unshift({subj,total,wrong,correction:0,ts,type:'add'});
+  showToast('已新增 '+subj+' 記錄');render();
+}
+
+function addCorrection(){
+  cancelPending();
+  const subj=sel.value;
+  const n=parseInt(document.getElementById('inCorrection').value)||0;
+  if(n<=0){alert('訂正數需大於 0');return;}
+  const remaining=data[subj].wrong-data[subj].correction;
+  if(n>remaining){alert('訂正數不能超過未訂正錯題數（'+remaining+'）');return;}
+  data[subj].correction+=n;
+  const dk=todayKey();ensureDailySubj(dk,subj);
+  dailyLog[dk][subj].correction+=n;
+  const ts=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  history.unshift({subj,total:0,wrong:0,correction:n,ts,type:'correction'});
+  showToast(subj+' 訂正 '+n+' 題');render();
+}
+
+function renderLegend(){
+  document.getElementById('legendGrid').innerHTML=SUBJECTS.map((s,i)=>`
+    <span class="leg-item${mutedSubjs.has(s)?' muted':''}" onclick="toggleSubj('${s}')">
+      <span class="leg-line" style="background:${COLORS[i]}"></span>${s}
+    </span>`).join('');
+}
+
+function renderChart(){
+  if(lineChart)lineChart.destroy();
+  const allDates=Object.keys(dailyLog).sort();
+  const today=todayKey();
+  const labels=allDates.length>0?allDates:[today];
+  const tc=isDark?'#777':'#999';
+  const gc=isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.07)';
+  const datasets=SUBJECTS.map((s,i)=>({
+    label:s,
+    data:labels.map(dk=>{
+      if(!dailyLog[dk]||!dailyLog[dk][s])return 0;
+      return dailyLog[dk][s][chartMode]||0;
+    }),
+    borderColor:COLORS[i],backgroundColor:COLORS[i]+'18',
+    borderWidth:2,pointRadius:4,pointBackgroundColor:COLORS[i],
+    fill:false,tension:0.35,hidden:mutedSubjs.has(s)
+  }));
+  lineChart=new Chart(document.getElementById('lineChart'),{
+    type:'line',data:{labels:labels.map(fmtLabel),datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>labels[ctx[0].dataIndex],label:ctx=>`${ctx.dataset.label}：${ctx.parsed.y} 題`}}},
+      scales:{
+        x:{ticks:{font:{size:11},color:tc},grid:{display:false}},
+        y:{beginAtZero:true,ticks:{font:{size:11},color:tc,stepSize:1,callback:v=>Number.isInteger(v)?v:''},grid:{color:gc}}
+      }
+    }
+  });
+}
+
+function render(){
+  const totals=SUBJECTS.map(s=>data[s].total);
+  const wrongs=SUBJECTS.map(s=>data[s].wrong);
+  const corrections=SUBJECTS.map(s=>data[s].correction);
+  const allTotal=totals.reduce((a,b)=>a+b,0);
+  const allWrong=wrongs.reduce((a,b)=>a+b,0);
+  const allCorrection=corrections.reduce((a,b)=>a+b,0);
+  const avgRate=allTotal>0?Math.round(allWrong/allTotal*100):0;
+  const worstIdx=wrongs.indexOf(Math.max(...wrongs));
+  const corrRate=allWrong>0?Math.round(allCorrection/allWrong*100):0;
+
+  document.getElementById('summaryGrid').innerHTML=`
+    <div class="metric"><div class="mlabel">總答題數</div><div class="mval">${allTotal}</div></div>
+    <div class="metric"><div class="mlabel">總錯題數</div><div class="mval" style="color:#E24B4A">${allWrong}</div></div>
+    <div class="metric"><div class="mlabel">答對數</div><div class="mval" style="color:#639922">${allTotal-allWrong}</div></div>
+    <div class="metric"><div class="mlabel">平均錯誤率</div><div class="mval">${avgRate}%</div><div class="msub">${allTotal>0?'最弱：'+SUBJECTS[worstIdx]:'尚無資料'}</div></div>
+    <div class="metric metric-correction"><div class="mlabel">總訂正數</div><div class="mval" style="color:#1D9E75">${allCorrection}</div><div class="msub">${allWrong>0?'已訂正 '+corrRate+'%':'尚無錯題'}</div><div class="correction-bar" style="width:${corrRate}%"></div></div>`;
+
+  const maxW=Math.max(...wrongs,1);
+  document.getElementById('subjList').innerHTML=SUBJECTS.map((s,i)=>{
+    const t=data[s].total,w=data[s].wrong,c=data[s].correction;
+    const rate=t>0?Math.round(w/t*100):0;
+    const bw=Math.round(w/maxW*100);
+    const rc=rate>=60?'#E24B4A':rate>=30?'#BA7517':'#639922';
+    const remaining=w-c;
+    return`<div class="subject-row">
+      <span class="subj-name">${s}</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:${bw}%;background:${COLORS[i]}"></div></div>
+      <span class="subj-counts">${w}/${t}</span>
+      <span class="subj-rate" style="color:${rc}">${t>0?rate+'% 錯誤率':'—'}</span>
+      <span class="subj-correction">${w>0?'訂正 '+c+' / 餘 '+remaining:'—'}</span>
+      <div class="reset-cell"><button class="reset-btn" id="rbtn-${s}" onclick="handleResetSubject('${s}')" aria-label="重置 ${s}"><i class="ti ti-refresh" aria-hidden="true"></i></button></div>
+    </div>`;
+  }).join('');
+
+  const hl=document.getElementById('historyList');
+  hl.innerHTML=history.length===0?'<div class="empty">尚無答題記錄</div>':history.map(h=>{
+    if(h.type==='reset')return`<div class="history-item"><span class="hi-subj">${h.subj}</span><span class="badge badge-r">已重置</span><span class="hi-time">${h.ts}</span></div>`;
+    if(h.type==='correction')return`<div class="history-item"><span class="hi-subj">${h.subj}</span><span class="badge badge-cor">訂正 ${h.correction} 題</span><span class="hi-time">${h.ts}</span></div>`;
+    return`<div class="history-item"><span class="hi-subj">${h.subj}</span><span class="badge badge-w">錯 ${h.wrong}</span><span class="badge badge-c">對 ${h.total-h.wrong}</span><span>共 ${h.total} 題</span><span class="hi-time">${h.ts}</span></div>`;
+  }).join('');
+
+  renderLegend();renderChart();
+}
+
+function addNbItem(){
+  const subj=nbSubjSel.value;
+  const q=document.getElementById('nbQuestion').value.trim();
+  if(!q){alert('請輸入題目內容');return;}
+  const correct=document.getElementById('nbCorrect').value.trim();
+  const mine=document.getElementById('nbMine').value.trim();
+  const note=document.getElementById('nbNote').value.trim();
+  const ts=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  nbItems.unshift({id:Date.now(),subj,q,correct,mine,note,ts,corrected:false});
+  document.getElementById('nbQuestion').value='';
+  document.getElementById('nbCorrect').value='';
+  document.getElementById('nbMine').value='';
+  document.getElementById('nbNote').value='';
+  showToast('錯題已儲存');
+  renderNotebook();
+}
+
+function nbToggleCorrect(id){
+  const item=nbItems.find(x=>x.id===id);
+  if(!item)return;
+  item.corrected=!item.corrected;
+  showToast(item.corrected?'已標記訂正':'已取消訂正');
+  renderNotebook();
+}
+
+function nbDelete(id){
+  const idx=nbItems.findIndex(x=>x.id===id);
+  if(idx===-1)return;
+  nbItems.splice(idx,1);
+  showToast('已刪除');
+  renderNotebook();
+}
+
+function loadAutoItems(){
+  try{return JSON.parse(localStorage.getItem('nb_auto_items')||'[]');}catch{return[];}
+}
+function saveAutoItems(items){
+  try{localStorage.setItem('nb_auto_items',JSON.stringify(items));}catch{}
+}
+
+function nbToggleCorrectAuto(id){
+  const items=loadAutoItems();
+  const item=items.find(x=>x.id===id);
+  if(!item)return;
+  item.corrected=!item.corrected;
+  saveAutoItems(items);
+  showToast(item.corrected?'已標記訂正':'已取消訂正');
+  renderNotebook();
+}
+
+let _nbCache=[];
+
+function renderNotebook(){
+  const search=document.getElementById('nbSearch').value.trim().toLowerCase();
+  const filterSubj=document.getElementById('nbFilter').value;
+  const filterStatus=document.getElementById('nbStatusFilter').value;
+
+  const autoItems=loadAutoItems().map(x=>({...x,_auto:true}));
+  const allItems=[...nbItems.map(x=>({...x,_auto:false})),...autoItems];
+
+  let list=allItems.filter(x=>{
+    if(filterSubj&&x.subj!==filterSubj)return false;
+    if(filterStatus==='pending'&&x.corrected)return false;
+    if(filterStatus==='corrected'&&!x.corrected)return false;
+    if(search&&!x.q.toLowerCase().includes(search)&&!(x.note||'').toLowerCase().includes(search))return false;
+    return true;
+  });
+
+  _nbCache=list;
+  document.getElementById('nbCount').textContent='共 '+list.length+' 題（手動 '+nbItems.length+'，自動 '+autoItems.length+'）';
+  const el=document.getElementById('nbList');
+  if(list.length===0){el.innerHTML='<div class="empty">尚無錯題記錄<br><span style="font-size:11px">在各題庫答錯後會自動出現在這裡</span></div>';return;}
+
+  el.innerHTML=list.map(x=>{
+    const meta=[];
+    if(x.correct)meta.push(`<span class="nb-meta-pair">正確答案：<strong>${x.correct}</strong></span>`);
+    if(x.mine)meta.push(`<span class="nb-meta-pair">我的答案：<strong style="color:#E24B4A">${x.mine}</strong></span>`);
+    if(x.exam)meta.push(`<span class="nb-meta-pair">來源：${x.exam}</span>`);
+    if(x.note)meta.push(`<span class="nb-meta-pair">備註：<strong>${x.note}</strong></span>`);
+    if(x._auto&&x.wrongCount>1)meta.push(`<span class="nb-meta-pair" style="color:#E24B4A">答錯 ${x.wrongCount} 次</span>`);
+
+    const toggleFn=x._auto?`nbToggleCorrectAuto('${x.id}')`:`nbToggleCorrect(${x.id})`;
+    const deleteFn=x._auto?`nbDeleteAuto('${x.id}')`:`nbDelete(${x.id})`;
+    const sourceTag=x._auto?`<span style="font-size:10px;color:var(--text3);background:var(--bg2);padding:1px 6px;border-radius:5px">自動</span>`:'';
+
+    return`<div class="nb-item${x.corrected?' corrected':''}">
+      <div class="nb-item-header">
+        <span class="nb-item-subj">${x.subj}</span>
+        ${sourceTag}
+        ${x.corrected?'<span class="nb-corrected-badge"><i class="ti ti-circle-check" aria-hidden="true"></i> 已訂正</span>':''}
+        <span class="nb-item-date">${x.ts}</span>
+      </div>
+      <div class="nb-item-q">${x.q.replace(/</g,'&lt;')}</div>
+      ${meta.length?`<div class="nb-item-meta">${meta.join('')}</div>`:''}
+      <div class="nb-item-actions">
+        <button class="btn${x.corrected?' btn-correction':''}" onclick="${toggleFn}" style="font-size:11px;padding:3px 10px">
+          <i class="ti ti-${x.corrected?'x':'check'}" aria-hidden="true"></i> ${x.corrected?'取消訂正':'標記訂正'}
+        </button>
+        <button class="btn btn-anki" onclick="ankiPushOne(_nbCache[${list.indexOf(x)}])" style="font-size:11px;padding:3px 10px">
+          🃏 推送 Anki
+        </button>
+        <button class="btn" onclick="${deleteFn}" style="font-size:11px;padding:3px 10px;color:#E24B4A;border-color:#E24B4A">
+          <i class="ti ti-trash" aria-hidden="true"></i> 刪除
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function ankiDeck(){
+  const v=document.getElementById('ankiDeck').value.trim();
+  return v||'Default';
+}
+
+function buildAnkiNote(x,deck){
+  const labels=['(A)','(B)','(C)','(D)','(E)'];
+  let front=x.q||'';
+  if(x.options&&x.options.length){
+    front+='\n\n'+x.options.map((o,i)=>labels[i]+' '+o).join('\n');
+  }
+  if(x.note) front+='\n\n【備註】'+x.note;
+
+  let back='';
+  if(x.correct){
+    if(x.options&&x.options.length){
+      const ci=x.options.indexOf(x.correct);
+      back=(ci>=0?labels[ci]+' ':'')+x.correct;
+    } else {
+      back=x.correct;
+    }
+    back='✅ 正確答案：'+back;
+  }
+  if(x.exam) back+='\n\n📋 來源：'+x.exam;
+  if(x.subj) back+='\n🏷️ 科目：'+x.subj;
+  if(x.wrongCount>1) back+='\n❌ 答錯 '+x.wrongCount+' 次';
+
+  return{
+    deckName:deck,
+    modelName:'Basic',
+    fields:{Front:front.replace(/\n/g,'<br>'),Back:back.replace(/\n/g,'<br>')},
+    options:{allowDuplicate:false,duplicateScope:'deck'},
+    tags:['錯題賺錢',x.subj||''].filter(Boolean)
+  };
+}
+
+async function ankiRequest(action,params={}){
+  const r=await fetch('http://localhost:8765',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action,version:6,params})
+  });
+  return r.json();
+}
+
+async function ankiCheckConnect(){
+  const st=document.getElementById('ankiStatus');
+  st.style.display='';
+  st.className='anki-status';
+  st.textContent='連線中…';
+  try{
+    const r=await ankiRequest('version');
+    if(r.error){throw new Error(r.error);}
+    st.className='anki-status ok';
+    st.textContent='✓ AnkiConnect v'+r.result+' 連線成功';
+  }catch(e){
+    st.className='anki-status err';
+    if(e instanceof TypeError&&e.message.includes('fetch')){
+      st.textContent='✗ 連線被拒：Anki 未開啟、未裝 AnkiConnect，或 CORS 未允許此來源';
+    } else {
+      st.textContent='✗ '+e.message;
+    }
+  }
+}
+
+async function ankiPushOne(x){
+  const deck=ankiDeck();
+  try{
+    const r=await ankiRequest('addNote',{note:buildAnkiNote(x,deck)});
+    if(r.error){
+      if(r.error.includes('duplicate')) showToast('⚠️ 此題已在 Anki 中（重複）');
+      else showToast('✗ 推送失敗：'+r.error);
+    } else {
+      showToast('🃏 已推送到 '+deck);
+    }
+  }catch(e){
+    showToast('✗ 無法連線 AnkiConnect，請先確認 Anki 已開啟');
+  }
+}
+
+async function ankiPushAll(){
+  const deck=ankiDeck();
+  if(!_nbCache.length){showToast('沒有可推送的題目');return;}
+  showToast('推送中…');
+  let ok=0,dup=0,fail=0;
+  for(const x of _nbCache){
+    try{
+      const r=await ankiRequest('addNote',{note:buildAnkiNote(x,deck)});
+      if(r.error){if(r.error.includes('duplicate'))dup++;else fail++;}
+      else ok++;
+    }catch{fail++;break;}
+  }
+  showToast(`推送完成：新增 ${ok} 張，重複 ${dup} 張，失敗 ${fail} 張`);
+}
+
+async function ankiPullSync(){
+  const deck=ankiDeck();
+  showToast('同步中…');
+  try{
+    // 1. 取得牌組內所有筆記 ID（只抓有 錯題賺錢 標籤的）
+    const findR=await ankiRequest('findNotes',{query:`deck:"${deck}" tag:錯題賺錢`});
+    if(findR.error) throw new Error(findR.error);
+    const noteIds=findR.result||[];
+    if(!noteIds.length){showToast('Anki 牌組裡沒有標記「錯題賺錢」的卡片');return;}
+
+    // 2. 取得筆記詳細資料
+    const infoR=await ankiRequest('notesInfo',{notes:noteIds});
+    if(infoR.error) throw new Error(infoR.error);
+    const notes=infoR.result||[];
+
+    // 3. 取得複習狀態（判斷是否已訂正）
+    const cardIdsR=await ankiRequest('findCards',{query:`deck:"${deck}" tag:錯題賺錢`});
+    const cardIds=cardIdsR.result||[];
+    const cardsR=await ankiRequest('cardsInfo',{cards:cardIds});
+    // 建立 noteId → 是否已訂正 的對照表（interval >= 2 視為已熟練）
+    const correctedNotes=new Set();
+    (cardsR.result||[]).forEach(c=>{if(c.interval>=2)correctedNotes.add(c.note);});
+
+    // 4. 對照現有 nbItems 和 autoItems，更新或新增
+    const autoItems=loadAutoItems();
+    let imported=0, updated=0;
+
+    notes.forEach(note=>{
+      const front=(note.fields.Front?.value||'').replace(/<br>/g,'\n').replace(/<[^>]+>/g,'').trim();
+      const back=(note.fields.Back?.value||'').replace(/<br>/g,'\n').replace(/<[^>]+>/g,'').trim();
+      if(!front) return;
+
+      // 從 back 解析正確答案和科目
+      const correctMatch=back.match(/正確答案：(.+)/);
+      const subjMatch=back.match(/科目：(.+)/);
+      const correct=correctMatch?correctMatch[1].trim():'';
+      const subj=subjMatch?subjMatch[1].trim():'（Anki 匯入）';
+      const isCorrected=correctedNotes.has(note.noteId);
+      const ts=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+
+      // 先找有無對應的 autoItem（用題目文字比對）
+      const autoIdx=autoItems.findIndex(x=>x.q&&front.startsWith(x.q.substring(0,30)));
+      if(autoIdx>=0){
+        autoItems[autoIdx].corrected=isCorrected;
+        updated++;
+        return;
+      }
+      // 再找有無對應的 nbItem
+      const nbIdx=nbItems.findIndex(x=>x.q&&front.startsWith(x.q.substring(0,30)));
+      if(nbIdx>=0){
+        nbItems[nbIdx].corrected=isCorrected;
+        updated++;
+        return;
+      }
+      // 全新卡片，加進 nbItems
+      nbItems.unshift({id:Date.now()+Math.random(),subj,q:front,correct,mine:'',note:'',ts,corrected:isCorrected,source:'anki'});
+      imported++;
+    });
+
+    saveAutoItems(autoItems);
+    showToast(`同步完成：新匯入 ${imported} 題，更新訂正狀態 ${updated} 題`);
+    renderNotebook();
+  }catch(e){
+    showToast('✗ 同步失敗：'+(e.message.includes('fetch')?'請確認 Anki 已開啟':e.message));
+  }
+}
+
+function nbDeleteAuto(id){
+  const items=loadAutoItems().filter(x=>x.id!==id);
+  saveAutoItems(items);
+  showToast('已刪除');
+  renderNotebook();
+}
+
+// 記憶牌組名
+const ankiDeckInput=document.getElementById('ankiDeck');
+ankiDeckInput.value=localStorage.getItem('ankiDeckName')||'';
+ankiDeckInput.addEventListener('input',()=>localStorage.setItem('ankiDeckName',ankiDeckInput.value));
+
+render();
+</script>
