@@ -1592,13 +1592,13 @@ async function ankiPushAll(){
 async function ankiPullSync(){
   const deck=ankiDeckName();showToast('同步中…');
   try{
-    const findR=await ankiRequest('findNotes',{query:`deck:"${deck}" tag:錯題賺錢`});
+    const findR=await ankiRequest('findNotes',{query:'tag:錯題賺錢'});
     if(findR.error)throw new Error(findR.error);
     const noteIds=findR.result||[];
-    if(!noteIds.length){showToast('Anki 牌組裡沒有標記「錯題賺錢」的卡片');return;}
+    if(!noteIds.length){showToast('Anki 裡沒有標記「錯題賺錢」標籤的卡片');return;}
     const infoR=await ankiRequest('notesInfo',{notes:noteIds});
     const notes=infoR.result||[];
-    const cardIdsR=await ankiRequest('findCards',{query:`deck:"${deck}" tag:錯題賺錢`});
+    const cardIdsR=await ankiRequest('findCards',{query:'tag:錯題賺錢'});
     const cardsR=await ankiRequest('cardsInfo',{cards:cardIdsR.result||[]});
     const correctedNotes=new Set();
     (cardsR.result||[]).forEach(c=>{if(c.interval>=2)correctedNotes.add(c.note);});
