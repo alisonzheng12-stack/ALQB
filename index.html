@@ -352,6 +352,12 @@ body.dark .btn-anki{background:#3a2e00;color:#ffd566;border-color:#7a5f00}
 .lv-999 .lv-title{color:#fcd34d}
 @keyframes lvup{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
 .lv-badge.lvup{animation:lvup .5s ease}
+.wallet-box{display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,.08);border-radius:12px;padding:10px 16px;border:1px solid rgba(255,255,255,.15);flex-shrink:0;min-width:80px}
+.wallet-icon{font-size:22px;line-height:1;margin-bottom:4px}
+.wallet-amount{font-size:18px;font-weight:900;color:#fcd34d;letter-spacing:.5px}
+.wallet-label{font-size:10px;color:rgba(255,255,255,.5);margin-top:2px}
+@keyframes coinpop{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-48px) scale(1.3)}}
+.coin-pop{position:fixed;font-size:16px;font-weight:800;color:#fcd34d;pointer-events:none;z-index:9999;animation:coinpop .9s ease forwards;text-shadow:0 2px 8px rgba(0,0,0,.4)}
 
 /* PWA Standalone */
 @media (display-mode: standalone) {
@@ -799,6 +805,11 @@ if('serviceWorker' in navigator){
       </div>
       <div class="lv-bar-wrap"><div class="lv-bar-fill" id="lvBar" style="width:0%"></div></div>
       <div class="lv-total-exp" id="lvTotalExp">累計 0 EXP</div>
+    </div>
+    <div class="wallet-box">
+      <div class="wallet-icon">💰</div>
+      <div class="wallet-amount" id="walletAmount">0</div>
+      <div class="wallet-label">元</div>
     </div>
   </div>
 
@@ -1500,6 +1511,24 @@ function getLvTitle(lv){
   for(const [min,t] of LV_TITLES){if(lv>=min)title=t;}
   return title;
 }
+function loadWallet(){return parseInt(localStorage.getItem('nb_wallet')||'0');}
+function saveWallet(v){localStorage.setItem('nb_wallet',String(v));}
+function renderWallet(){const el=document.getElementById('walletAmount');if(el)el.textContent=loadWallet().toLocaleString();}
+function earnCoins(sourceEl){
+  const coins=Math.floor(Math.random()*10)+1;
+  saveWallet(loadWallet()+coins);
+  renderWallet();
+  // 浮動金幣動畫
+  const pop=document.createElement('div');
+  pop.className='coin-pop';
+  pop.textContent='+'+coins+'元';
+  const rect=sourceEl?sourceEl.getBoundingClientRect():{top:300,left:window.innerWidth/2};
+  pop.style.left=(rect.left+rect.width/2-20)+'px';
+  pop.style.top=(rect.top-10)+'px';
+  document.body.appendChild(pop);
+  setTimeout(()=>pop.remove(),900);
+  showToast('💰 訂正獲得 +'+coins+' 元！');
+}
 function loadExp(){return parseInt(localStorage.getItem('nb_total_exp')||'0');}
 function saveExp(v){localStorage.setItem('nb_total_exp',String(v));}
 function calcLevel(totalExp){return Math.min(Math.floor(totalExp/100),999);}
@@ -1517,6 +1546,7 @@ function gainExp(amount){
   }
 }
 function renderLevel(){
+  renderWallet();
   const totalExp=loadExp();
   const lv=calcLevel(totalExp);
   const expInLv=lv<999?totalExp-(lv*100):100;
@@ -1571,21 +1601,25 @@ function addNbItem(){
   showToast('錯題已儲存 ＋10 EXP');renderNotebook();
 }
 
-function nbToggleCorrect(id){
+function nbToggleCorrect(id,btn){
   const item=nbItems.find(x=>x.id===id);
   if(!item)return;
   item.corrected=!item.corrected;
-  showToast(item.corrected?'已標記訂正':'已取消訂正');renderNotebook();
+  if(item.corrected)earnCoins(btn);
+  else showToast('已取消訂正');
+  renderNotebook();
 }
 function nbDelete(id){nbItems=nbItems.filter(x=>x.id!==id);showToast('已刪除');renderNotebook();}
 
-function nbToggleCorrectAuto(id){
+function nbToggleCorrectAuto(id,btn){
   const items=loadAutoItems();
   const item=items.find(x=>x.id===id);
   if(!item)return;
   item.corrected=!item.corrected;
   saveAutoItems(items);
-  showToast(item.corrected?'已標記訂正':'已取消訂正');renderNotebook();
+  if(item.corrected)earnCoins(btn);
+  else showToast('已取消訂正');
+  renderNotebook();
 }
 function nbDeleteAuto(id){saveAutoItems(loadAutoItems().filter(x=>x.id!==id));showToast('已刪除');renderNotebook();}
 
@@ -1616,7 +1650,7 @@ function renderNotebook(){
     if(x.note)meta.push(`<span class="nb-meta-pair">備註：<strong>${x.note}</strong></span>`);
     if(x._auto&&x.wrongCount>1)meta.push(`<span class="nb-meta-pair" style="color:#ef4444">答錯 ${x.wrongCount} 次</span>`);
     const srcTag=x._auto?`<span style="font-size:10px;color:#aaa;background:#f0f0f0;padding:1px 6px;border-radius:4px">自動</span>`:'';
-    const toggleFn=x._auto?`nbToggleCorrectAuto('${x.id}')`:`nbToggleCorrect(${x.id})`;
+    const toggleFn=x._auto?`nbToggleCorrectAuto('${x.id}',this)`:`nbToggleCorrect(${x.id},this)`;
     const deleteFn=x._auto?`nbDeleteAuto('${x.id}')`:`nbDelete(${x.id})`;
     return`<div class="nb-item${x.corrected?' corrected':''}">
       <div class="nb-item-header">
