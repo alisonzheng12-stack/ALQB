@@ -2,15 +2,119 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-title" content="題庫">
 <meta name="theme-color" content="#4f7df3" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#13131c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>考試題庫</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyD9rrcx23hSLHY2XFLAWmtvIzE8vcs8ThI",
+  authDomain:"qb3qb-3f668.firebaseapp.com",
+  projectId:"qb3qb-3f668",
+  storageBucket:"qb3qb-3f668.firebasestorage.app",
+  messagingSenderId:"9334197426",
+  appId:"1:9334197426:web:482f1ed44b03cf00264dab"
+});
+const _auth = firebase.auth();
+const _db   = firebase.firestore();
+let _uid = null;
+
+_auth.onAuthStateChanged(user => {
+  _uid = user ? user.uid : null;
+  const btn     = document.getElementById('login-btn');
+  const userInfo= document.getElementById('user-info');
+  const userEmail=document.getElementById('user-email');
+  if (user) {
+    if (btn)       btn.style.display = 'none';
+    if (userInfo)  userInfo.style.display = 'flex';
+    if (userEmail) userEmail.textContent = user.email;
+    _loadFromFirestore();
+  } else {
+    if (btn)       btn.style.display = 'flex';
+    if (userInfo)  userInfo.style.display = 'none';
+  }
+});
+
+function _openLoginModal() {
+  document.getElementById('login-modal').style.display = 'flex';
+  document.getElementById('login-email').focus();
+}
+function _closeLoginModal() {
+  document.getElementById('login-modal').style.display = 'none';
+  document.getElementById('login-err').textContent = '';
+}
+async function _submitLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw    = document.getElementById('login-pw').value;
+  const err   = document.getElementById('login-err');
+  if (!email || !pw) { err.textContent = '請填寫信箱和密碼'; return; }
+  try {
+    await _auth.signInWithEmailAndPassword(email, pw);
+    _closeLoginModal();
+  } catch(e) {
+    const msgs = {
+      'auth/invalid-email': '信箱格式不正確',
+      'auth/user-not-found': '帳號不存在',
+      'auth/wrong-password': '密碼錯誤',
+      'auth/invalid-credential': '信箱或密碼錯誤',
+    };
+    err.textContent = msgs[e.code] || e.message;
+  }
+}
+function _logout() {
+  if (confirm('確定登出？')) _auth.signOut();
+}
+
+let _syncTimer = null;
+function _setSyncState(state, text) {
+  const btn = document.getElementById('sync-btn');
+  const ico = document.getElementById('sync-icon');
+  const lbl = document.getElementById('sync-text');
+  if (!btn) return;
+  btn.className = 'sync-btn ' + state;
+  btn.style.display = 'flex';
+  lbl.textContent = text;
+  const icons = {
+    saving: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+    ok:     '<polyline points="20 6 9 17 4 12"/>',
+    fail:   '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  };
+  ico.innerHTML = icons[state] || icons.saving;
+  clearTimeout(_syncTimer);
+  if (state !== 'saving') _syncTimer = setTimeout(() => { btn.style.display = 'none'; }, 3000);
+}
+async function _saveToFirestore(key, data) {
+  if (!_uid) return;
+  _setSyncState('saving', '儲存中');
+  try {
+    await _db.collection('users').doc(_uid).collection('data').doc(key).set(data, {merge:true});
+    _setSyncState('ok', '已儲存');
+  } catch(e) {
+    _setSyncState('fail', '儲存失敗');
+  }
+}
+
+async function _loadFromFirestore() {
+  if (!_uid) return;
+  try {
+    const snap = await _db.collection('users').doc(_uid).collection('data').get();
+    snap.forEach(doc => { localStorage.setItem(doc.id, JSON.stringify(doc.data())); });
+    if (typeof updateStats === 'function') updateStats();
+    if (typeof renderWrong === 'function' && typeof curPage !== 'undefined' && curPage === 'wrong') renderWrong();
+    if (typeof renderAnalysis === 'function' && typeof curPage !== 'undefined' && curPage === 'analysis') renderAnalysis();
+    showToast('雲端同步完成 ☁️');
+  } catch(e) {}
+}
+</script>
 <script src="data_adminlaw.js"></script>
 <script src="data_faxu.js"></script>
 <script src="data_adminsci.js"></script>
@@ -18,26 +122,46 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh;padding-top:58px;padding-bottom:70px}
 
-/* 頂部科目切換 */
-.subject-bar{position:fixed;top:0;left:0;right:0;height:54px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;padding:0 16px;z-index:100;overflow-x:auto;scrollbar-width:none;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-.subject-bar::-webkit-scrollbar{display:none}
-.subj-btn{flex-shrink:0;padding:7px 18px;border-radius:99px;border:2px solid #e0e0e0;background:#fafafa;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;color:#888;white-space:nowrap}
-.subj-btn.active{color:#fff;border-color:transparent}
+/* 頂部外殼 */
+.top-bar-wrap{
+  position:fixed;top:env(safe-area-inset-top);left:0;right:0;
+  height:54px;background:#fff;border-bottom:1px solid #eee;
+  display:flex;align-items:center;z-index:9999;
+  box-shadow:0 2px 8px rgba(0,0,0,.06);
+  padding:0 12px 0 16px;gap:8px;
+}
+.top-controls{
+  flex-shrink:0;display:flex;align-items:center;gap:4px;
+  margin-left:auto;
+}
+/* 科目下拉選單 */
+.subj-select-wrap{
+  position:relative;flex-shrink:0;
+}
+.subj-select-wrap::after{
+  content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  font-size:11px;color:#fff;pointer-events:none;opacity:.8;
+}
+#subject-select{
+  appearance:none;-webkit-appearance:none;
+  padding:7px 28px 7px 12px;border-radius:99px;border:none;
+  font-size:14px;font-weight:700;cursor:pointer;
+  color:#fff;background:var(--accent,#4f7df3);
+  outline:none;min-height:36px;
+  box-shadow:0 1px 6px rgba(0,0,0,.15);
+}
+#subject-select option{background:#fff;color:#1a1a2e}
+body.dark .top-bar-wrap{background:#111111;border-color:#2a2a2a;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+body.dark #subject-select option{background:#1e1e1e;color:#dcdcf0}
 
 /* 底部導覽 */
 .nav-bar{
-  position:fixed;
-  bottom:0;left:0;right:0;
-  height:62px;
-  background:#fff;
-  border-top:1px solid #eee;
-  display:flex;
-  z-index:9999;                         /* 永遠在最上層 */
+  position:fixed;bottom:0;left:0;right:0;
+  height:62px;background:#fff;border-top:1px solid #eee;
+  display:flex;z-index:9999;
   box-shadow:0 -2px 12px rgba(0,0,0,.06);
-  /* iOS Home Bar 安全區 */
   padding-bottom:env(safe-area-inset-bottom);
   height:calc(62px + env(safe-area-inset-bottom));
-  /* PWA standalone 時確保貼底 */
   padding-left:env(safe-area-inset-left);
   padding-right:env(safe-area-inset-right);
 }
@@ -54,7 +178,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif;back
 .setting-label{font-size:12px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px;display:block}
 .setting-group{margin-bottom:14px}
 select,input[type=number]{width:100%;padding:10px 13px;border:1.5px solid #e8e8e8;border-radius:10px;font-size:15px;outline:none;background:#fafafa;transition:border-color .2s;color:#1a1a2e}
-.btn-primary{width:100%;padding:14px;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s,transform .1s;margin-top:6px}
+.btn-primary{width:100%;padding:14px;color:#fff;letter-spacing:.3px;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;transition:background .2s,transform .1s;margin-top:6px;-webkit-font-smoothing:antialiased}
 .btn-primary:active{transform:scale(.98)}
 .btn-danger{background:#ef4444!important}
 .btn-danger:hover{background:#dc2626!important}
@@ -63,12 +187,18 @@ select,input[type=number]{width:100%;padding:10px 13px;border:1.5px solid #e8e8e
 .stat-box .num{font-size:24px;font-weight:800}
 .stat-box .lbl{font-size:11px;color:#aaa;margin-top:2px}
 
-/* 答題 overlay（z-index 低於 nav-bar，內容自己留底部空間） */
+/* 答題 overlay */
 #quiz-overlay{display:none;position:fixed;inset:0;background:#f0f2f5;z-index:500;overflow-y:auto;
   padding-bottom:calc(80px + env(safe-area-inset-bottom));padding-top:0}
 .quiz-inner{max-width:640px;margin:0 auto;padding:14px}
 .top-bar{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#888;margin:10px 0 5px}
 .btn-quit{background:none;border:none;font-size:13px;color:#aaa;cursor:pointer;padding:4px 8px;border-radius:8px}
+.q-timer{font-size:15px;font-weight:800;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#f0f0f0;color:#555;transition:background .3s,color .3s;flex-shrink:0}
+.q-timer.warn{background:#fef3c7;color:#d97706}
+.q-timer.danger{background:#fee2e2;color:#dc2626}
+body.dark .q-timer{background:#1e1e1e;color:#aaa}
+body.dark .q-timer.warn{background:#451a03;color:#fbbf24}
+body.dark .q-timer.danger{background:#450a0a;color:#f87171}
 .progress-bar-wrap{background:#e0e0e0;border-radius:99px;height:5px;margin-bottom:18px;overflow:hidden}
 .progress-bar-fill{height:100%;border-radius:99px;transition:width .4s}
 .question-card{background:#fff;border-radius:16px;padding:22px 20px;box-shadow:0 4px 20px rgba(0,0,0,.06);margin-bottom:12px}
@@ -155,68 +285,98 @@ svg.radar{overflow:visible}
 .empty-msg{text-align:center;padding:36px 20px;color:#bbb;font-size:13px;line-height:1.8}
 .no-wrong{text-align:center;padding:18px;color:#22c55e;font-weight:600;font-size:13px}
 
-/* ── PWA Standalone 模式 ── */
-@media (display-mode: standalone) {
-  /* nav-bar 貼底，撐起 safe-area */
-  .nav-bar {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 9999 !important;
-    padding-bottom: env(safe-area-inset-bottom) !important;
-    height: calc(62px + env(safe-area-inset-bottom)) !important;
-    background: #fff;
-  }
-  body.dark .nav-bar { background: #1d1d2b !important; }
+/* ── 錯題賺錢 ── */
+.nb-form{display:flex;flex-direction:column;gap:8px;margin-bottom:1rem;padding:.8rem .9rem;background:#f5f5f2;border-radius:10px;border:0.5px solid rgba(0,0,0,.1)}
+body.dark .nb-form{background:#242428;border-color:rgba(255,255,255,.1)}
+.nb-form-row{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.nb-form-row label{font-size:12px;color:#666;white-space:nowrap;padding-top:6px;min-width:52px}
+body.dark .nb-form-row label{color:#aaa}
+.nb-form-row select,.nb-form-row input,.nb-form-row textarea{font-size:13px;padding:6px 9px;border:1px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;color:#1a1a2e;outline:none;flex:1;width:auto;min-height:auto}
+body.dark .nb-form-row select,body.dark .nb-form-row input,body.dark .nb-form-row textarea{background:#1a1a1e;color:#f0f0f0;border-color:rgba(255,255,255,.2)}
+.nb-form-row textarea{resize:vertical;min-height:64px;font-family:inherit}
+.nb-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+.nb-filter-row{display:flex;gap:8px;align-items:center;margin-bottom:.75rem;flex-wrap:wrap}
+.nb-filter-row label{font-size:12px;color:#888}
+.nb-filter-row select{font-size:12px;padding:5px 9px;border:1px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;color:#1a1a2e;outline:none;width:auto;min-height:auto}
+body.dark .nb-filter-row select{background:#1a1a1e;color:#f0f0f0;border-color:rgba(255,255,255,.2)}
+.nb-search{font-size:13px;padding:6px 10px;border:1px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;color:#1a1a2e;outline:none;flex:1;width:auto;min-height:auto}
+body.dark .nb-search{background:#1a1a1e;color:#f0f0f0;border-color:rgba(255,255,255,.2)}
+.nb-item{border:1px solid rgba(0,0,0,.1);border-radius:10px;background:#fff;padding:.75rem .9rem;display:flex;flex-direction:column;gap:6px}
+body.dark .nb-item{background:#1a1a1e;border-color:rgba(255,255,255,.1)}
+.nb-item.corrected{border-left:3px solid #22c55e}
+.nb-item-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nb-item-subj{font-size:12px;font-weight:600;color:var(--accent,#4f7df3);background:rgba(79,125,243,.1);border-radius:6px;padding:2px 8px}
+.nb-item-date{font-size:11px;color:#aaa;margin-left:auto}
+.nb-item-q{font-size:13px;color:#1a1a2e;line-height:1.55;white-space:pre-wrap}
+body.dark .nb-item-q{color:#f0f0f0}
+.nb-item-meta{display:flex;gap:12px;flex-wrap:wrap}
+.nb-meta-pair{font-size:12px;color:#888}
+.nb-meta-pair strong{color:#1a1a2e}
+body.dark .nb-meta-pair strong{color:#f0f0f0}
+.nb-item-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.nb-corrected-badge{font-size:11px;color:#16a34a;font-weight:500}
+.nb-list{display:flex;flex-direction:column;gap:8px}
+.nb-count{font-size:11px;color:#aaa;margin-left:auto}
+.anki-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:.6rem .9rem;background:#f5f5f2;border-radius:10px;border:1px solid rgba(0,0,0,.1);margin-bottom:.9rem}
+body.dark .anki-bar{background:#242428;border-color:rgba(255,255,255,.1)}
+.anki-bar label{font-size:12px;color:#888;white-space:nowrap}
+.anki-bar input{font-size:12px;padding:5px 9px;border:1px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;color:#1a1a2e;outline:none;width:150px;min-height:auto}
+body.dark .anki-bar input{background:#1a1a1e;color:#f0f0f0;border-color:rgba(255,255,255,.2)}
+.anki-status{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:500}
+.anki-status.ok{background:#f0fdf4;color:#16a34a}
+.anki-status.err{background:#fff5f5;color:#dc2626}
+.btn-anki{font-size:12px;padding:6px 12px;cursor:pointer;border-radius:8px;border:1px solid #d4a017;background:#fff8e6;color:#7a4f00;font-weight:600}
+.btn-anki:hover{background:#ffe9a0}
+body.dark .btn-anki{background:#3a2e00;color:#ffd566;border-color:#7a5f00}
+.btn-nb-save{background:var(--accent,#4f7df3);color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer}
+.btn-nb-correct{background:#22c55e;color:#fff;border:none;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer}
+.btn-nb-uncorrect{background:#f0fdf4;color:#16a34a;border:1px solid #22c55e;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer}
+.btn-nb-del{background:#fff5f5;color:#dc2626;border:1px solid #ef4444;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer}
 
-  /* 頁面內容底部留足夠空間，不被 nav 遮住 */
-  body {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
-  }
-  #quiz-overlay {
-    padding-bottom: calc(82px + env(safe-area-inset-bottom)) !important;
-  }
-  #result-overlay {
-    padding-bottom: calc(90px + env(safe-area-inset-bottom)) !important;
-  }
+/* PWA Standalone */
+@media (display-mode: standalone) {
+  .top-bar-wrap{top:env(safe-area-inset-top)!important}
+  body{padding-top:calc(54px + env(safe-area-inset-top))!important}
+  .nav-bar{position:fixed!important;bottom:0!important;left:0!important;right:0!important;z-index:9999!important;padding-bottom:env(safe-area-inset-bottom)!important;height:calc(62px + env(safe-area-inset-bottom))!important;background:#fff}
+  body.dark .nav-bar{background:#111111!important}
+  body{padding-bottom:calc(72px + env(safe-area-inset-bottom))!important}
+  #quiz-overlay{padding-bottom:calc(82px + env(safe-area-inset-bottom))!important}
+  #result-overlay{padding-bottom:calc(90px + env(safe-area-inset-bottom))!important}
 }
 
-/* ── iOS / iPad 響應式 ── */
-
-/* 消除 iOS tap 高亮和雙擊縮放 */
+/* iOS tap 取消高亮 */
 *{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 button,select,input{-webkit-appearance:none;appearance:none}
 
-/* iOS safe area 支援（瀏海 / 底部 Home Bar） */
+/* iOS safe area */
 body{
   padding-top:calc(54px + env(safe-area-inset-top));
   padding-bottom:calc(70px + env(safe-area-inset-bottom));
 }
-.subject-bar{
-  top:env(safe-area-inset-top);
-  padding-left:calc(16px + env(safe-area-inset-left));
-  padding-right:calc(16px + env(safe-area-inset-right));
+#subject-select{
+  padding-left:calc(12px + env(safe-area-inset-left));
 }
 .nav-bar{
   padding-bottom:env(safe-area-inset-bottom);
   height:calc(62px + env(safe-area-inset-bottom));
 }
 
-/* iOS form 字體最小 16px，防止 Safari 自動放大 */
+/* iOS form 防止自動放大 */
 select,input[type=number]{font-size:16px}
 
-/* 基礎觸控友善 */
+/* 觸控友善 */
 .btn-primary{min-height:52px;font-size:16px}
 .option-btn{min-height:52px;font-size:15px;padding:14px 16px}
-.subj-btn{min-height:38px;padding:8px 18px}
+#subject-select{min-height:38px}
 .filter-chip{min-height:36px}
 .nav-btn{min-height:44px}
 
-/* ── 手機（< 430px，iPhone 標準） ── */
+/* 手機 */
 @media(max-width:430px){
-  .subject-bar{gap:6px;padding:0 10px 0 calc(10px + env(safe-area-inset-left))}
-  .subj-btn{padding:7px 13px;font-size:13px}
+  .top-bar-wrap{height:48px}
+  .top-controls{padding:0 calc(8px + env(safe-area-inset-right)) 0 4px;gap:3px}
+  body{padding-top:calc(48px + env(safe-area-inset-top))}
+  #subject-select{font-size:13px;padding:6px 26px 6px 10px}
   .page{padding:12px 12px 0}
   .card{padding:18px 14px;border-radius:14px}
   .page-header{font-size:18px;margin-bottom:12px}
@@ -234,19 +394,17 @@ select,input[type=number]{font-size:16px}
   .result-card{padding:20px 16px}
 }
 
-/* ── iPad（768px+） ── */
+/* iPad */
 @media(min-width:768px){
-  body{
-    padding-top:calc(62px + env(safe-area-inset-top));
-    padding-bottom:calc(80px + env(safe-area-inset-bottom));
-  }
-  .subject-bar{height:62px;gap:12px;padding:0 32px}
-  .subj-btn{padding:9px 24px;font-size:15px}
+  body{padding-top:calc(62px + env(safe-area-inset-top));padding-bottom:calc(80px + env(safe-area-inset-bottom));}
+  .top-bar-wrap{height:62px}
+  .top-controls{padding:0 32px 0 8px;gap:8px}
+  body{padding-top:calc(62px + env(safe-area-inset-top))}
+  #subject-select{font-size:15px;padding:9px 30px 9px 16px}
   .dark-toggle{width:42px;height:42px;font-size:20px}
   .nav-bar{height:calc(76px + env(safe-area-inset-bottom))}
   .nav-btn{font-size:13px;gap:5px}
   .nav-btn svg{width:26px;height:26px}
-
   .page{padding:24px 32px 0;max-width:780px}
   .card{padding:26px 24px;border-radius:18px;margin-bottom:16px}
   .page-header{font-size:24px;margin-bottom:20px}
@@ -257,7 +415,6 @@ select,input[type=number]{font-size:16px}
   .setting-label{font-size:13px}
   select,input[type=number]{padding:13px 16px;font-size:16px;border-radius:12px}
   .btn-primary{padding:17px;font-size:17px;border-radius:14px;min-height:58px}
-
   .quiz-inner{padding:20px 32px;max-width:780px}
   .question-card{padding:32px 28px;border-radius:20px}
   .question-text{font-size:18px;line-height:1.7;margin-bottom:24px}
@@ -267,17 +424,13 @@ select,input[type=number]{font-size:16px}
   .feedback{font-size:16px;padding:14px 18px}
   .btn-next{font-size:17px;padding:16px;border-radius:14px;min-height:56px}
   .btn-quit{font-size:14px}
-
-  /* iPad 選項 2 欄（適合 A/B/C/D 各佔半邊） */
   .options{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-
   .result-inner{padding:28px 32px;max-width:780px}
   .result-card{padding:32px 28px;border-radius:22px}
   .score-circle{width:96px;height:96px}
   .score-circle .num{font-size:32px}
   .score-info h2{font-size:22px}
   .score-info .detail{font-size:15px}
-
   .wrong-header h2,.analysis-header h2{font-size:24px}
   .wq-card{padding:22px 22px 14px;border-radius:16px}
   .wq-question{font-size:15px}
@@ -287,80 +440,159 @@ select,input[type=number]{font-size:16px}
   svg.radar{width:340px;height:340px}
 }
 
-/* ── iPad Pro 大尺寸（1024px+） ── */
+/* iPad Pro */
 @media(min-width:1024px){
-  .page,.quiz-inner,.result-inner{max-width:900px;padding-left:48px;padding-right:48px}
-  .question-text{font-size:19px}
+  .page,.quiz-inner,.result-inner{max-width:960px;padding-left:48px;padding-right:48px}
+  .question-text{font-size:20px}
   .option-btn{font-size:17px}
 }
 
-/* 深色模式切換按鈕 */
+/* 桌機大螢幕（護眼設定） */
+@media(min-width:1280px){
+  .page,.quiz-inner,.result-inner{max-width:860px} /* 限制行寬，避免眼睛掃太遠 */
+  .question-text{font-size:19px;line-height:1.85;margin-bottom:26px;letter-spacing:.01em}
+  .option-btn{font-size:16px;padding:16px 20px;border-radius:13px;min-height:58px;line-height:1.6;gap:14px}
+  .option-label{width:34px;height:34px;font-size:14px}
+  .exam-tag{font-size:13px;padding:4px 10px}
+  .kw-tag{font-size:12px;padding:3px 10px}
+  .feedback{font-size:16px;padding:13px 18px;line-height:1.6}
+  .btn-next{font-size:17px;padding:16px;border-radius:14px}
+  .question-card{padding:36px 36px}
+  .card{padding:28px 28px}
+  .page-header{font-size:24px}
+  .stat-box .num{font-size:30px}
+  .stat-box .lbl{font-size:13px}
+  .setting-label{font-size:14px}
+  select,input[type=number]{font-size:16px;padding:14px 16px}
+  .btn-primary{font-size:17px;padding:17px;min-height:60px}
+}
+
+/* 深色切換按鈕 */
 .dark-toggle{flex-shrink:0;margin-left:auto;width:36px;height:36px;border-radius:50%;border:none;background:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:background .2s}
 .dark-toggle:hover{background:rgba(128,128,128,.15)}
 
-/* ── 深色模式（三層深度色階）──
-   層1 頁面底色  #13131c  最深
-   層2 卡片/面板 #1d1d2b  中層
-   層3 輸入欄位  #272737  最亮
-   文字主色      #dcdcf0
-   文字次色      #7070a0
-   邊框          #2a2a40
-*/
-body.dark{background:#13131c;color:#dcdcf0}
+/* 雲端存檔狀態按鈕 */
+.sync-btn{flex-shrink:0;height:30px;padding:0 10px;border-radius:99px;border:1.5px solid #e0e0e0;background:#fff;font-size:12px;font-weight:700;cursor:default;display:none;align-items:center;gap:5px;transition:all .4s;white-space:nowrap}
+.sync-btn.saving{border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}
+.sync-btn.ok    {border-color:#86efac;background:#f0fdf4;color:#15803d}
+.sync-btn.fail  {border-color:#fca5a5;background:#fff5f5;color:#b91c1c}
+.sync-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sync-btn.saving svg{animation:spin .8s linear infinite}
+body.dark .sync-btn{background:#111111;border-color:#2a2a2a;color:#aaa}
+body.dark .sync-btn.saving{border-color:#1e3a5f;background:#0c1a2e;color:#60a5fa}
+body.dark .sync-btn.ok    {border-color:#166534;background:#052e16;color:#4ade80}
+body.dark .sync-btn.fail  {border-color:#7f1d1d;background:#1a0000;color:#f87171}
 
-/* 頂部 / 底部導覽 */
-body.dark .subject-bar{background:#1d1d2b;border-color:#2a2a40;box-shadow:0 2px 12px rgba(0,0,0,.4)}
-body.dark .subj-btn{background:#272737;border-color:#2a2a40;color:#7070a0}
-body.dark .nav-bar{background:#1d1d2b;border-color:#2a2a40;box-shadow:0 -2px 12px rgba(0,0,0,.4)}
-body.dark .nav-btn{color:#4a4a6a}
+/* 瀏覽人次 */
+.visit-counter{flex-shrink:0;display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#888;white-space:nowrap;padding:0 4px}
+.visit-counter svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+body.dark .visit-counter{color:#5a5a80}
+
+/* 頂部重置按鈕 */
+.reset-top-btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1.5px solid #fca5a5;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#ef4444;transition:all .2s}
+.reset-top-btn:hover{background:#fee2e2;border-color:#ef4444}
+.reset-top-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+body.dark .reset-top-btn{border-color:#7f1d1d;color:#f87171}
+body.dark .reset-top-btn:hover{background:#450a0a;border-color:#f87171}
+
+/* 登入按鈕 */
+.login-btn{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;border:1.5px solid #e0e0e0;background:#fff;font-size:12px;font-weight:700;color:#444;cursor:pointer;white-space:nowrap;transition:all .2s}
+.login-btn:hover{border-color:#4f7df3;color:#4f7df3}
+body.dark .login-btn{background:#1e1e1e;border-color:#2a2a2a;color:#aaa}
+.user-info{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.user-email{font-size:11px;font-weight:600;color:#555;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.dark .user-email{color:#aaa}
+.logout-btn{font-size:11px;font-weight:700;color:#ef4444;background:none;border:1.5px solid #fca5a5;border-radius:99px;padding:4px 10px;cursor:pointer;white-space:nowrap}
+.logout-btn:hover{background:#fff5f5}
+body.dark .logout-btn{border-color:#7f1d1d;color:#f87171}
+
+/* 登入 Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px;box-shadow:0 8px 40px rgba(0,0,0,.18)}
+body.dark .modal-box{background:#111111;color:#dcdcf0}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.modal-header span{font-size:18px;font-weight:800}
+.modal-close{background:none;border:none;font-size:18px;cursor:pointer;color:#888;line-height:1}
+.modal-input{border:1.5px solid #e0e0e0;border-radius:10px;padding:12px 14px;font-size:15px;outline:none;transition:border-color .2s}
+.modal-input:focus{border-color:#4f7df3}
+body.dark .modal-input{background:#1e1e1e;border-color:#2a2a2a;color:#dcdcf0}
+.modal-err{font-size:13px;color:#ef4444;min-height:16px;font-weight:600}
+.modal-submit{background:#4f7df3;color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s}
+.modal-submit:hover{background:#3a66d8}
+
+/* Toast */
+.toast{position:fixed;top:calc(62px + env(safe-area-inset-top));left:50%;transform:translateX(-50%) translateY(-10px);background:#1a1a2e;color:#fff;padding:10px 20px;border-radius:99px;font-size:13px;font-weight:600;z-index:99999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+body.dark .toast{background:#e0e0f0;color:#1a1a2e}
+
+/* 特訓區 */
+.drill-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.drill-header h2{font-size:20px;font-weight:800}
+.drill-conquered{background:#22c55e;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px}
+.drill-section-title{font-size:12px;font-weight:700;color:#aaa;letter-spacing:.5px;margin-bottom:12px}
+.drill-chips{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:18px}
+.drill-chip{padding:9px 14px;border-radius:12px;border:2px solid;font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;line-height:1.4;display:flex;align-items:center;gap:7px}
+.drill-chip:active{transform:scale(.97)}
+.drill-chip-count{font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(0,0,0,.08);flex-shrink:0}
+.drill-chip.has-wrong .drill-chip-count{background:#ef4444;color:#fff}
+.drill-chip.all-conquered .drill-chip-count{background:#22c55e;color:#fff}
+.drill-chip.empty{opacity:.4;cursor:default}
+.drill-hint{text-align:center;padding:18px;color:#aaa;font-size:13px;font-weight:600}
+.drill-empty{text-align:center;padding:40px 20px;color:#bbb;font-size:13px;line-height:1.8}
+.drill-mode-banner{background:linear-gradient(90deg,#7c3aed,#4f7df3);color:#fff;font-size:12px;font-weight:700;padding:8px 14px;border-radius:10px;margin-bottom:12px;display:none;align-items:center;gap:7px}
+.drill-mode-banner svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;flex-shrink:0}
+body.dark .drill-chip{border-color:rgba(255,255,255,.08)}
+body.dark .drill-chip-count{background:rgba(255,255,255,.12)}
+body.dark .drill-chip.has-wrong .drill-chip-count{background:#ef4444;color:#fff}
+body.dark .drill-hint{color:#5a5a80}
+
+/* 模擬考整體計時器 */
+.mock-exam-timer{font-size:15px;font-weight:800;padding:4px 12px;border-radius:99px;background:#e0f2fe;color:#0369a1;letter-spacing:1px;display:none;flex-shrink:0}
+.mock-exam-timer.warn{background:#fef3c7;color:#d97706}
+.mock-exam-timer.danger{background:#fee2e2;color:#dc2626;animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+body.dark .mock-exam-timer{background:#0c2a40;color:#38bdf8}
+body.dark .mock-exam-timer.warn{background:#451a03;color:#fbbf24}
+body.dark .mock-exam-timer.danger{background:#450a0a;color:#f87171}
+
+/* 模擬考頁面 */
+.mock-info-row{display:flex;gap:8px;margin-bottom:16px}
+.mock-info-box{flex:1;background:#f0f9ff;border-radius:13px;padding:14px 8px;text-align:center;border:1.5px solid #bae6fd}
+.mock-info-box .num{font-size:24px;font-weight:800;color:#0369a1}
+.mock-info-box .lbl{font-size:11px;color:#0ea5e9;margin-top:2px}
+body.dark .mock-info-box{background:#0c2233;border-color:#1e4060}
+body.dark .mock-info-box .num{color:#38bdf8}
+body.dark .mock-info-box .lbl{color:#0ea5e9}
+
+/* ── 深色模式 ── */
+body.dark{background:#000000;color:#dcdcf0}
+body.dark .nav-bar{background:#111111;border-color:#2a2a2a;box-shadow:0 -2px 12px rgba(0,0,0,.4)}
+body.dark .nav-btn{color:#9090b8}
 body.dark .dark-toggle:hover{background:rgba(255,255,255,.08)}
-
-/* 文字 */
 body.dark .page-header,body.dark .analysis-header h2,body.dark .wrong-header h2{color:#dcdcf0}
 body.dark .setting-label{color:#7070a0}
 body.dark .section-title{color:#b0b0d0}
-body.dark .section-sub{color:#5050780}
+body.dark .section-sub{color:#507078}
 body.dark .legend{color:#7070a0}
 body.dark .score-info h2{color:#dcdcf0}
 body.dark .score-info .detail{color:#7070a0}
-
-/* 卡片（層2） */
-body.dark .card,
-body.dark .stat-box,
-body.dark .question-card,
-body.dark .result-card,
-body.dark .wq-card{background:#1d1d2b;box-shadow:0 2px 16px rgba(0,0,0,.35)}
+body.dark .card,body.dark .stat-box,body.dark .question-card,body.dark .result-card,body.dark .wq-card{background:#111111;box-shadow:0 2px 16px rgba(0,0,0,.35)}
 body.dark .stat-box .lbl{color:#5a5a80}
 body.dark .stat-box .num{color:#dcdcf0}
-
-/* 輸入欄（層3） */
-body.dark select,body.dark input[type=number]{background:#272737;border-color:#2a2a40;color:#dcdcf0}
+body.dark select,body.dark input[type=number]{background:#1e1e1e;border-color:#2a2a2a;color:#dcdcf0}
 body.dark select:focus,body.dark input:focus{border-color:var(--accent)}
-
-/* 按鈕 */
-body.dark .btn-clear{background:#272737;border-color:#2a2a40;color:#7070a0}
-body.dark .btn-next{background:#272737;color:#dcdcf0}
+body.dark .btn-clear{background:#1e1e1e;border-color:#2a2a2a;color:#7070a0}
+body.dark .btn-next{background:#1e1e1e;color:#dcdcf0}
 body.dark .btn-quit{color:#5a5a80}
-body.dark .btn-primary:not(.btn-danger){
-  filter:brightness(1.25);
-  box-shadow:0 0 18px rgba(100,120,255,.25);
-}
-body.dark .btn-primary:not(.btn-danger):hover{
-  filter:brightness(1.4);
-  box-shadow:0 0 24px rgba(100,120,255,.35);
-}
-
-/* 答題 overlay */
-body.dark #quiz-overlay,body.dark #result-overlay{background:#13131c}
-body.dark .exam-tag{background:#272737;color:#7070a0}
-body.dark .progress-bar-wrap{background:#272737}
-
-/* 選項按鈕（層3底色） */
-body.dark .option-btn{background:#272737;border-color:#2a2a40;color:#dcdcf0}
-body.dark .option-btn:hover:not(:disabled){background:#30304a;border-color:var(--accent)}
-body.dark .option-label{background:#30304a;color:#9090b8}
-
-/* 答對/答錯 */
+body.dark .btn-primary:not(.btn-danger){box-shadow:0 0 18px rgba(100,120,255,.25);color:#000!important;}
+body.dark .btn-primary:not(.btn-danger):hover{box-shadow:0 0 24px rgba(100,120,255,.4);color:#000!important;}
+body.dark #quiz-overlay,body.dark #result-overlay{background:#000000}
+body.dark .exam-tag{background:#1e1e1e;color:#7070a0}
+body.dark .progress-bar-wrap{background:#1e1e1e}
+body.dark .option-btn{background:#1e1e1e;border-color:#2a2a2a;color:#dcdcf0}
+body.dark .option-btn:hover:not(:disabled){background:#2e2e2e;border-color:var(--accent)}
+body.dark .option-label{background:#2e2e2e;color:#9090b8}
 body.dark .option-btn.correct{background:#0d2e1a;border-color:#22c55e}
 body.dark .option-btn.correct .option-label{background:#22c55e;color:#fff}
 body.dark .option-btn.wrong{background:#2e0d0d;border-color:#ef4444}
@@ -369,26 +601,20 @@ body.dark .option-btn.show-correct{background:#0d2e1a;border-color:#22c55e}
 body.dark .option-btn.show-correct .option-label{background:#22c55e;color:#fff}
 body.dark .feedback.correct{background:#0d2e1a;color:#4ade80}
 body.dark .feedback.wrong{background:#2e0d0d;color:#f87171}
-
-/* 錯題本 */
-body.dark .filter-chip{background:#272737;border-color:#2a2a40;color:#7070a0}
+body.dark .filter-chip{background:#1e1e1e;border-color:#2a2a2a;color:#7070a0}
 body.dark .wq-exam{color:#5a5a80}
 body.dark .wq-question{color:#dcdcf0}
-body.dark .wq-option{background:#272737;color:#dcdcf0;border-color:transparent}
+body.dark .wq-option{background:#1e1e1e;color:#dcdcf0;border-color:transparent}
 body.dark .wq-option.is-answer{background:#0d2e1a;border-color:#22c55e}
-body.dark .wq-option-label{background:#30304a;color:#9090b8}
-body.dark .wq-textarea{background:#272737;border-color:#2a2a40;color:#dcdcf0}
+body.dark .wq-option-label{background:#2e2e2e;color:#9090b8}
+body.dark .wq-textarea{background:#1e1e1e;border-color:#2a2a2a;color:#dcdcf0}
 body.dark .wq-textarea:focus{border-color:var(--accent)}
 body.dark .wq-saved-note{background:#0d2e1a;color:#4ade80;border-color:#22c55e}
 body.dark .empty-msg{color:#3a3a5a}
 body.dark .wq-wrong-count{background:#2e0d0d;color:#f87171}
-
-/* 雷達圖 */
-body.dark .radar-grid{stroke:#272737}
-body.dark .radar-axis{stroke:#2a2a40}
+body.dark .radar-grid{stroke:#1e1e1e}
+body.dark .radar-axis{stroke:#2a2a2a}
 body.dark .radar-label{fill:#9090b8}
-
-/* 弱點清單 */
 body.dark .weak-item{background:rgba(30,30,43,.8)}
 </style>
 <script>
@@ -399,7 +625,6 @@ if('serviceWorker' in navigator){
       .catch(e => console.log('SW error:', e));
   });
 }
-// URL 參數：?subj=adminlaw 直接跳科目
 (function(){
   const p = new URLSearchParams(location.search).get('subj');
   if(p) window.__initSubj = p;
@@ -409,8 +634,47 @@ if('serviceWorker' in navigator){
 <body>
 
 <!-- 頂部科目切換 -->
-<div class="subject-bar" id="subject-bar">
-  <button class="dark-toggle" id="dark-toggle" onclick="toggleDark()" title="深色/淺色切換">🌙</button>
+<div class="top-bar-wrap">
+  <div class="subj-select-wrap">
+    <select id="subject-select" onchange="initSubject(this.value)"></select>
+  </div>
+  <div class="top-controls">
+    <div class="visit-counter" id="visit-counter" title="累計瀏覽人次">
+      <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span id="visit-count">--</span>
+    </div>
+    <div id="sync-btn" class="sync-btn">
+      <svg id="sync-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      <span id="sync-text">儲存中</span>
+    </div>
+    <button class="reset-top-btn" onclick="resetAll()" title="資料全部重置">
+      <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    </button>
+    <button id="login-btn" class="login-btn" onclick="_openLoginModal()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      登入同步
+    </button>
+    <div id="user-info" class="user-info" style="display:none">
+      <span id="user-email" class="user-email"></span>
+      <button class="logout-btn" onclick="_logout()">登出</button>
+    </div>
+    <button class="dark-toggle" id="dark-toggle" onclick="toggleDark()">🌙</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- 登入 Modal -->
+<div id="login-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)_closeLoginModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="login-title">登入帳號</span>
+      <button class="modal-close" onclick="_closeLoginModal()">✕</button>
+    </div>
+    <input id="login-email" class="modal-input" type="email" placeholder="電子信箱" autocomplete="email">
+    <input id="login-pw" class="modal-input" type="password" placeholder="密碼（至少 6 字元）" autocomplete="current-password" onkeydown="if(event.key==='Enter')_submitLogin()">
+    <div id="login-err" class="modal-err"></div>
+    <button id="login-submit" class="modal-submit" onclick="_submitLogin()">登入</button>
+  </div>
 </div>
 
 <!-- 底部導覽 -->
@@ -418,11 +682,20 @@ if('serviceWorker' in navigator){
   <button class="nav-btn active" id="nav-practice" onclick="showPage('practice')">
     <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>練習
   </button>
+  <button class="nav-btn" id="nav-mock" onclick="showPage('mock')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>模擬考
+  </button>
   <button class="nav-btn" id="nav-wrong" onclick="showPage('wrong')">
     <svg viewBox="0 0 24 24"><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10z"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>錯題
   </button>
+  <button class="nav-btn" id="nav-drill" onclick="showPage('drill')">
+    <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>特訓
+  </button>
   <button class="nav-btn" id="nav-analysis" onclick="showPage('analysis')">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 010 20"/><path d="M2 12h20"/><path d="M12 2c2.8 2.7 4 6 4 10s-1.2 7.3-4 10"/></svg>分析
+  </button>
+  <button class="nav-btn" id="nav-notebook" onclick="showPage('notebook')">
+    <svg viewBox="0 0 24 24"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg>賺錢
   </button>
 </nav>
 
@@ -440,7 +713,28 @@ if('serviceWorker' in navigator){
     <div class="setting-group"><span class="setting-label">出題數量</span>
       <input type="number" id="num-questions" value="20" min="5" max="9999"></div>
     <button class="btn-primary" id="btn-start" onclick="startQuiz()">開始答題</button>
-    <button class="btn-primary btn-danger" onclick="resetAll()" style="margin-top:8px">&#128465; 資料全部重置</button>
+  </div>
+</div>
+
+<!-- 模擬考頁 -->
+<div class="page" id="page-mock">
+  <div class="page-header">📝 模擬考</div>
+  <div class="mock-info-row">
+    <div class="mock-info-box"><div class="num">50</div><div class="lbl">隨機題數</div></div>
+    <div class="mock-info-box"><div class="num">60</div><div class="lbl">考試分鐘</div></div>
+    <div class="mock-info-box"><div class="num" id="mock-pool-count">0</div><div class="lbl">題庫可用</div></div>
+  </div>
+  <div class="card">
+    <div class="setting-group">
+      <span class="setting-label">出題範圍</span>
+      <select id="mock-filter-exam" onchange="updateMockPoolCount()"><option value="all">全部考試</option></select>
+    </div>
+    <div style="background:#fff7ed;border-radius:11px;padding:13px 15px;margin-bottom:14px;font-size:13px;color:#92400e;line-height:1.7;border:1px solid #fed7aa">
+      ⏱ 考試開始後倒數 <strong>60 分鐘</strong>，時間到自動交卷。<br>
+      🎲 從題庫隨機抽取 <strong>50 題</strong>，每題無單獨計時。<br>
+      📊 結束後顯示成績與錯題分析。
+    </div>
+    <button class="btn-primary" id="mock-btn-start" onclick="startMockExam()" style="background:#0891b2">🚀 開始模擬考</button>
   </div>
 </div>
 
@@ -451,16 +745,85 @@ if('serviceWorker' in navigator){
   <div id="wrong-list"></div>
 </div>
 
+<!-- 特訓頁 -->
+<div class="page" id="page-drill">
+  <div class="drill-header">
+    <h2>⚔️ 主題特訓</h2>
+    <span class="drill-conquered" id="drill-total-conquered" style="display:none"></span>
+  </div>
+  <div class="drill-section-title" id="drill-section-title">選擇主題</div>
+  <div class="drill-chips" id="drill-chips"></div>
+  <div class="drill-hint" id="drill-hint" style="display:none">請先答題，答錯的題目會自動收錄到這裡 📌</div>
+</div>
+
 <!-- 分析頁 -->
 <div class="page" id="page-analysis">
   <div class="analysis-header"><h2>&#128202; 錯題分析</h2><button class="btn-clear" onclick="clearStats()">清除統計</button></div>
   <div class="card"><div id="analysis-content"></div></div>
 </div>
 
+<!-- 錯題賺錢頁 -->
+<div class="page" id="page-notebook">
+  <div class="page-header">💰 錯題賺錢</div>
+
+  <div class="nb-form">
+    <div class="nb-form-row">
+      <label>科目</label>
+      <select id="nbSubj"></select>
+    </div>
+    <div class="nb-form-row">
+      <label>題目</label>
+      <textarea id="nbQuestion" placeholder="輸入題目內容（必填）"></textarea>
+    </div>
+    <div class="nb-form-row">
+      <label>正確答案</label>
+      <input type="text" id="nbCorrect" placeholder="（選填）">
+      <label style="margin-left:4px">我的答案</label>
+      <input type="text" id="nbMine" placeholder="（選填）">
+    </div>
+    <div class="nb-form-row">
+      <label>備註</label>
+      <input type="text" id="nbNote" placeholder="重點提示、解析（選填）">
+    </div>
+    <div class="nb-actions">
+      <button class="btn-nb-save" onclick="addNbItem()">＋ 儲存錯題</button>
+    </div>
+  </div>
+
+  <div class="anki-bar">
+    <label>🃏 Anki 牌組</label>
+    <input type="text" id="ankiDeck" placeholder="牌組名稱（預設 Default）">
+    <button class="btn-anki" onclick="ankiCheckConnect()">測試連線</button>
+    <span class="anki-status" id="ankiStatus" style="display:none"></span>
+    <button class="btn-anki" onclick="ankiPushAll()" style="margin-left:auto">全部推送</button>
+    <button class="btn-anki" onclick="ankiPullSync()">從 Anki 同步 ↓</button>
+  </div>
+
+  <div class="nb-filter-row">
+    <input class="nb-search" id="nbSearch" placeholder="搜尋題目…" oninput="renderNotebook()">
+    <label>科目</label>
+    <select id="nbFilter" onchange="renderNotebook()"><option value="">全部</option></select>
+    <label>狀態</label>
+    <select id="nbStatusFilter" onchange="renderNotebook()">
+      <option value="">全部</option>
+      <option value="pending">未訂正</option>
+      <option value="corrected">已訂正</option>
+    </select>
+    <span class="nb-count" id="nbCount"></span>
+  </div>
+
+  <div class="nb-list" id="nbList"></div>
+</div>
+
 <!-- 答題 overlay -->
 <div id="quiz-overlay">
   <div class="quiz-inner">
-    <div class="top-bar"><span id="q-counter"></span><span id="score-live"></span><button class="btn-quit" onclick="quitQuiz()">&#10005; 離開</button></div>
+    <div id="drill-banner" class="drill-mode-banner">
+      <svg viewBox="0 0 24 24"><polyline points="22 4 12 14.01 9 11.01"/><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/></svg>
+      <span>特訓模式 — 答對即征服，從錯題本移除</span>
+      <span id="drill-conquered-live" style="margin-left:auto;background:rgba(255,255,255,.25);padding:2px 8px;border-radius:99px">⚔️ 0</span>
+    </div>
+    <div class="top-bar"><span id="q-counter"></span><span id="score-live"></span><span id="mock-exam-timer" class="mock-exam-timer">60:00</span><span id="q-timer" class="q-timer">30</span><button class="btn-quit" onclick="quitQuiz()">&#10005; 離開</button></div>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
     <div class="question-card">
       <span class="exam-tag" id="exam-tag"></span>
@@ -494,8 +857,8 @@ if('serviceWorker' in navigator){
 
 <script>
 // ── 設定 ────────────────────────────────────────────────
-const SUBJECTS = [{"id": "adminlaw", "name": "行政法", "icon": "⚖️", "color": "#4f7df3", "color2": "#3a66d8", "bg": "#f0f2f5", "store": "al_stats", "wstore": "al_wrong", "dataVar": "DATA_ADMINLAW"}, {"id": "faxu", "name": "法學緒論", "icon": "📖", "color": "#7c3aed", "color2": "#6d28d9", "bg": "#f5f0ff", "store": "fx_stats", "wstore": "fx_wrong", "dataVar": "DATA_FAXU"}, {"id": "adminsci", "name": "行政學", "icon": "🏛️", "color": "#0891b2", "color2": "#0e7490", "bg": "#f0f9ff", "store": "as_stats", "wstore": "as_wrong", "dataVar": "DATA_ADMINSCI"}];
-const GROUPS_MAP = {"adminlaw":[{name:"行政處分",color:"#6366f1",keywords:["行政處分", "授益處分", "負擔處分", "撤銷", "廢止", "無效", "行政行為", "構成要件", "行政命令", "法規命令", "行政規則", "職權命令"]},{name:"附款",color:"#8b5cf6",keywords:["附款", "條件", "期限", "負擔", "廢止權保留", "停止條件", "解除條件", "不當聯結"]},{name:"行政契約",color:"#a855f7",keywords:["行政契約", "雙務契約", "行政協定", "和解契約", "私法契約"]},{name:"行政程序",color:"#3b82f6",keywords:["行政程序", "陳述意見", "聽證", "閱覽", "送達", "期日", "期間", "行政程序法", "告知", "通知", "公告"]},{name:"行政罰",color:"#f97316",keywords:["行政罰", "裁罰", "罰鍰", "沒入", "一行為不二罰", "故意", "過失", "行政秩序罰", "裁處", "處罰"]},{name:"行政執行",color:"#ef4444",keywords:["行政執行", "強制執行", "即時強制", "代履行", "怠金", "直接強制", "間接強制"]},{name:"訴願",color:"#f59e0b",keywords:["訴願", "訴願人", "訴願管轄", "訴願法", "訴願決定", "訴願機關"]},{name:"行政訴訟",color:"#eab308",keywords:["行政訴訟", "撤銷訴訟", "課予義務", "確認訴訟", "一般給付", "行政法院", "起訴"]},{name:"行政組織",color:"#22c55e",keywords:["行政機關", "管轄", "委任", "委託", "委辦", "公法人", "行政法人", "機關"]},{name:"地方自治",color:"#10b981",keywords:["地方自治", "自治條例", "自治規則", "地方制度", "直轄市", "自治事項", "委辦事項"]},{name:"法律原則",color:"#14b8a6",keywords:["比例原則", "信賴保護", "平等原則", "依法行政", "法律保留", "法律優位", "明確性原則", "誠信原則"]},{name:"裁量判斷",color:"#06b6d4",keywords:["裁量", "判斷餘地", "不確定法律概念", "裁量濫用", "裁量怠惰", "裁量基準", "自由裁量"]},{name:"公務員",color:"#0ea5e9",keywords:["公務員", "公務人員", "特別權力", "職務", "懲戒", "記過", "考績", "任用"]},{name:"國家賠償",color:"#64748b",keywords:["國家賠償", "損失補償", "徵收", "損害賠償", "賠償責任", "國賠", "特別犧牲"]},{name:"行政指導",color:"#84cc16",keywords:["行政指導", "行政計畫", "計畫確定", "指導", "非權力"]}],"faxu":[{name:"法律的概念",color:"#7c3aed",keywords:["法律的意義", "法律定義", "法律與道德", "規範", "社會規範", "法的意義", "成文法", "不成文法", "制定法"]},{name:"法律的分類",color:"#6d28d9",keywords:["公法", "私法", "社會法", "國際法", "實體法", "程序法", "強行法", "任意法", "普通法", "特別法"]},{name:"法源",color:"#4f46e5",keywords:["法源", "習慣", "判例", "法理", "條約", "慣例", "不文法", "法律淵源"]},{name:"法律的效力",color:"#2563eb",keywords:["效力", "法律效力", "時間效力", "空間效力", "人的效力", "屬地", "屬人", "溯及既往", "不溯及既往"]},{name:"法律的解釋",color:"#0891b2",keywords:["解釋", "文義解釋", "目的解釋", "體系解釋", "合憲解釋", "擴張解釋", "限縮解釋", "類推適用"]},{name:"法律的適用",color:"#0d9488",keywords:["法律適用", "特別法", "後法", "新法", "舊法", "衝突", "法律競合", "優先適用", "準用"]},{name:"權利與義務",color:"#059669",keywords:["權利", "義務", "公權利", "私權利", "形成權", "請求權", "抗辯權", "支配權", "人格權", "財產權"]},{name:"法律關係",color:"#16a34a",keywords:["法律關係", "主體", "客體", "法律事實", "法律行為", "事件", "權利主體", "義務主體"]},{name:"法律行為",color:"#65a30d",keywords:["法律行為", "意思表示", "行為能力", "意思能力", "瑕疵", "無效", "得撤銷", "代理", "無權代理", "表見代理"]},{name:"民法",color:"#ca8a04",keywords:["民法", "民事", "物權", "債權", "契約", "侵權", "親屬", "繼承", "時效", "所有權", "占有", "抵押", "保證", "買賣", "租賃"]},{name:"刑法",color:"#dc2626",keywords:["刑法", "刑事", "犯罪", "故意", "過失", "既遂", "未遂", "共犯", "正犯", "教唆", "幫助", "罪刑", "刑罰", "構成要件"]},{name:"憲法",color:"#db2777",keywords:["憲法", "基本權", "人權", "自由", "平等", "正當程序", "大法官", "釋憲", "修憲", "違憲", "國家機關", "立法院", "行政院"]},{name:"訴訟程序",color:"#9333ea",keywords:["訴訟", "訴訟程序", "起訴", "上訴", "再審", "管轄", "法院", "裁判", "判決", "裁定", "證據", "原告", "被告"]},{name:"責任與制裁",color:"#64748b",keywords:["責任", "制裁", "民事責任", "刑事責任", "行政責任", "賠償", "損害", "違法", "處罰"]},{name:"國際法",color:"#0ea5e9",keywords:["國際法", "條約", "國際習慣", "國際公法", "國際私法", "外交", "主權", "國籍", "引渡"]}],"adminsci":[{name:"行政學概念",color:"#0891b2",keywords:["行政", "公共行政", "行政學", "行政意義", "行政定義", "行政功能", "行政目標"]},{name:"組織理論",color:"#6366f1",keywords:["組織", "組織理論", "組織結構", "科層", "官僚", "韋伯", "層級", "分工", "正式組織", "非正式組織", "矩陣", "委員會"]},{name:"管理理論",color:"#8b5cf6",keywords:["管理", "科學管理", "泰勒", "費堯", "管理原則", "POSDCORB", "古立克", "行為科學", "霍桑", "人際關係", "系統理論", "權變理論"]},{name:"領導與激勵",color:"#a855f7",keywords:["領導", "領導理論", "領導風格", "激勵", "需求層次", "馬斯洛", "赫茲伯格", "雙因素", "期望理論", "X理論", "Y理論", "Z理論", "授權", "賦權"]},{name:"決策理論",color:"#3b82f6",keywords:["決策", "決策理論", "理性模型", "有限理性", "漸進主義", "混合掃描", "垃圾桶", "決策過程", "西蒙", "林布隆"]},{name:"溝通與協調",color:"#0ea5e9",keywords:["溝通", "協調", "橫向協調", "縱向協調", "正式溝通", "非正式溝通", "溝通障礙", "衝突管理"]},{name:"人事行政",color:"#22c55e",keywords:["人事", "人事行政", "文官", "功績制", "分類", "職位分類", "品位制", "考試", "任用", "銓敘", "考績", "訓練", "俸給", "退休"]},{name:"財務行政",color:"#16a34a",keywords:["財務", "預算", "財務行政", "公共預算", "編列", "審議", "決算", "會計", "審計", "採購", "績效預算", "零基預算", "PPBS"]},{name:"行政監督",color:"#f59e0b",keywords:["監督", "行政監督", "課責", "立法監督", "司法監督", "行政控制", "監察", "督導", "績效管理", "評估"]},{name:"公共政策",color:"#f97316",keywords:["公共政策", "政策", "政策分析", "政策制定", "政策執行", "政策評估", "政策終結", "議程設定", "政策規劃", "利害關係人"]},{name:"行政倫理",color:"#ef4444",keywords:["行政倫理", "倫理", "廉政", "貪腐", "利益衝突", "公務倫理", "道德", "行政責任", "課責", "中立"]},{name:"地方政府",color:"#10b981",keywords:["地方政府", "地方行政", "地方自治", "縣市", "鄉鎮", "區", "地方財政", "地方立法", "中央地方"]},{name:"政府改造",color:"#14b8a6",keywords:["政府改造", "行政革新", "新公共管理", "NPM", "治理", "電子化政府", "民營化", "委外", "績效", "顧客導向", "企業型政府"]},{name:"比較行政",color:"#06b6d4",keywords:["比較行政", "比較", "各國行政", "開發中國家", "行政文化", "行政生態", "官僚文化", "政治文化"]},{name:"非營利組織",color:"#84cc16",keywords:["非營利", "NPO", "NGO", "第三部門", "公民社會", "志願服務", "社會企業", "基金會", "協會"]}]};
+const SUBJECTS = [{"id":"adminlaw","name":"行政法","icon":"⚖️","color":"#4f7df3","color2":"#3a66d8","bg":"#f0f2f5","store":"al_stats","wstore":"al_wrong","dataVar":"DATA_ADMINLAW"},{"id":"faxu","name":"法學緒論","icon":"📖","color":"#7c3aed","color2":"#6d28d9","bg":"#f5f0ff","store":"fx_stats","wstore":"fx_wrong","dataVar":"DATA_FAXU"},{"id":"adminsci","name":"行政學","icon":"🏛️","color":"#0891b2","color2":"#0e7490","bg":"#f0f9ff","store":"as_stats","wstore":"as_wrong","dataVar":"DATA_ADMINSCI"}];
+const GROUPS_MAP = {"adminlaw":[{name:"行政處分",color:"#6366f1",keywords:["行政處分","授益處分","負擔處分","撤銷","廢止","無效","行政行為","構成要件","行政命令","法規命令","行政規則","職權命令"]},{name:"附款",color:"#8b5cf6",keywords:["附款","條件","期限","負擔","廢止權保留","停止條件","解除條件","不當聯結"]},{name:"行政契約",color:"#a855f7",keywords:["行政契約","雙務契約","行政協定","和解契約","私法契約"]},{name:"行政程序",color:"#3b82f6",keywords:["行政程序","陳述意見","聽證","閱覽","送達","期日","期間","行政程序法","告知","通知","公告"]},{name:"行政罰",color:"#f97316",keywords:["行政罰","裁罰","罰鍰","沒入","一行為不二罰","故意","過失","行政秩序罰","裁處","處罰"]},{name:"行政執行",color:"#ef4444",keywords:["行政執行","強制執行","即時強制","代履行","怠金","直接強制","間接強制"]},{name:"訴願",color:"#f59e0b",keywords:["訴願","訴願人","訴願管轄","訴願法","訴願決定","訴願機關"]},{name:"行政訴訟",color:"#eab308",keywords:["行政訴訟","撤銷訴訟","課予義務","確認訴訟","一般給付","行政法院","起訴"]},{name:"行政組織",color:"#22c55e",keywords:["行政機關","管轄","委任","委託","委辦","公法人","行政法人","機關"]},{name:"地方自治",color:"#10b981",keywords:["地方自治","自治條例","自治規則","地方制度","直轄市","自治事項","委辦事項"]},{name:"法律原則",color:"#14b8a6",keywords:["比例原則","信賴保護","平等原則","依法行政","法律保留","法律優位","明確性原則","誠信原則"]},{name:"裁量判斷",color:"#06b6d4",keywords:["裁量","判斷餘地","不確定法律概念","裁量濫用","裁量怠惰","裁量基準","自由裁量"]},{name:"公務員",color:"#0ea5e9",keywords:["公務員","公務人員","特別權力","職務","懲戒","記過","考績","任用"]},{name:"國家賠償",color:"#64748b",keywords:["國家賠償","損失補償","徵收","損害賠償","賠償責任","國賠","特別犧牲"]},{name:"行政指導",color:"#84cc16",keywords:["行政指導","行政計畫","計畫確定","指導","非權力"]}],"faxu":[{name:"法律的概念",color:"#7c3aed",keywords:["法律的意義","法律定義","法律與道德","規範","社會規範","法的意義","成文法","不成文法","制定法"]},{name:"法律的分類",color:"#6d28d9",keywords:["公法","私法","社會法","國際法","實體法","程序法","強行法","任意法","普通法","特別法"]},{name:"法源",color:"#4f46e5",keywords:["法源","習慣","判例","法理","條約","慣例","不文法","法律淵源"]},{name:"法律的效力",color:"#2563eb",keywords:["效力","法律效力","時間效力","空間效力","人的效力","屬地","屬人","溯及既往","不溯及既往"]},{name:"法律的解釋",color:"#0891b2",keywords:["解釋","文義解釋","目的解釋","體系解釋","合憲解釋","擴張解釋","限縮解釋","類推適用"]},{name:"法律的適用",color:"#0d9488",keywords:["法律適用","特別法","後法","新法","舊法","衝突","法律競合","優先適用","準用"]},{name:"權利與義務",color:"#059669",keywords:["權利","義務","公權利","私權利","形成權","請求權","抗辯權","支配權","人格權","財產權"]},{name:"法律關係",color:"#16a34a",keywords:["法律關係","主體","客體","法律事實","法律行為","事件","權利主體","義務主體"]},{name:"法律行為",color:"#65a30d",keywords:["法律行為","意思表示","行為能力","意思能力","瑕疵","無效","得撤銷","代理","無權代理","表見代理"]},{name:"民法",color:"#ca8a04",keywords:["民法","民事","物權","債權","契約","侵權","親屬","繼承","時效","所有權","占有","抵押","保證","買賣","租賃"]},{name:"刑法",color:"#dc2626",keywords:["刑法","刑事","犯罪","故意","過失","既遂","未遂","共犯","正犯","教唆","幫助","罪刑","刑罰","構成要件"]},{name:"憲法",color:"#db2777",keywords:["憲法","基本權","人權","自由","平等","正當程序","大法官","釋憲","修憲","違憲","國家機關","立法院","行政院"]},{name:"訴訟程序",color:"#9333ea",keywords:["訴訟","訴訟程序","起訴","上訴","再審","管轄","法院","裁判","判決","裁定","證據","原告","被告"]},{name:"責任與制裁",color:"#64748b",keywords:["責任","制裁","民事責任","刑事責任","行政責任","賠償","損害","違法","處罰"]},{name:"國際法",color:"#0ea5e9",keywords:["國際法","條約","國際習慣","國際公法","國際私法","外交","主權","國籍","引渡"]}],"adminsci":[{name:"行政學概念",color:"#0891b2",keywords:["行政","公共行政","行政學","行政意義","行政定義","行政功能","行政目標"]},{name:"組織理論",color:"#6366f1",keywords:["組織","組織理論","組織結構","科層","官僚","韋伯","層級","分工","正式組織","非正式組織","矩陣","委員會"]},{name:"管理理論",color:"#8b5cf6",keywords:["管理","科學管理","泰勒","費堯","管理原則","POSDCORB","古立克","行為科學","霍桑","人際關係","系統理論","權變理論"]},{name:"領導與激勵",color:"#a855f7",keywords:["領導","領導理論","領導風格","激勵","需求層次","馬斯洛","赫茲伯格","雙因素","期望理論","X理論","Y理論","Z理論","授權","賦權"]},{name:"決策理論",color:"#3b82f6",keywords:["決策","決策理論","理性模型","有限理性","漸進主義","混合掃描","垃圾桶","決策過程","西蒙","林布隆"]},{name:"溝通與協調",color:"#0ea5e9",keywords:["溝通","協調","橫向協調","縱向協調","正式溝通","非正式溝通","溝通障礙","衝突管理"]},{name:"人事行政",color:"#22c55e",keywords:["人事","人事行政","文官","功績制","分類","職位分類","品位制","考試","任用","銓敘","考績","訓練","俸給","退休"]},{name:"財務行政",color:"#16a34a",keywords:["財務","預算","財務行政","公共預算","編列","審議","決算","會計","審計","採購","績效預算","零基預算","PPBS"]},{name:"行政監督",color:"#f59e0b",keywords:["監督","行政監督","課責","立法監督","司法監督","行政控制","監察","督導","績效管理","評估"]},{name:"公共政策",color:"#f97316",keywords:["公共政策","政策","政策分析","政策制定","政策執行","政策評估","政策終結","議程設定","政策規劃","利害關係人"]},{name:"行政倫理",color:"#ef4444",keywords:["行政倫理","倫理","廉政","貪腐","利益衝突","公務倫理","道德","行政責任","課責","中立"]},{name:"地方政府",color:"#10b981",keywords:["地方政府","地方行政","地方自治","縣市","鄉鎮","區","地方財政","地方立法","中央地方"]},{name:"政府改造",color:"#14b8a6",keywords:["政府改造","行政革新","新公共管理","NPM","治理","電子化政府","民營化","委外","績效","顧客導向","企業型政府"]},{name:"比較行政",color:"#06b6d4",keywords:["比較行政","比較","各國行政","開發中國家","行政文化","行政生態","官僚文化","政治文化"]},{name:"非營利組織",color:"#84cc16",keywords:["非營利","NPO","NGO","第三部門","公民社會","志願服務","社會企業","基金會","協會"]}]};
 const DATA_MAP = {
   adminlaw: typeof DATA_ADMINLAW!=='undefined'?DATA_ADMINLAW:[],
   faxu:     typeof DATA_FAXU!=='undefined'?DATA_FAXU:[],
@@ -522,28 +885,21 @@ function initSubject(id){
   curSubj   = SUBJECTS.find(s=>s.id===id);
   curGroups = GROUPS_MAP[id];
 
-  // CSS 變數
   document.documentElement.style.setProperty('--accent', curSubj.color);
   document.documentElement.style.setProperty('--bg', curSubj.bg);
-  document.body.style.background = curSubj.bg;
+  if (!document.body.classList.contains('dark')) document.body.style.background = curSubj.bg;
 
-  // 頂部按鈕樣式
-  document.querySelectorAll('.subj-btn').forEach(b=>{
-    const active = b.dataset.id===id;
-    b.classList.toggle('active',active);
-    b.style.background = active ? curSubj.color : '';
-    b.style.color      = active ? '#fff' : '';
-  });
+  // 同步下拉選單選項與背景色
+  const sel = document.getElementById('subject-select');
+  if(sel){ sel.value = id; sel.style.background = curSubj.color; }
 
-  // 底部 nav 顏色
   document.querySelectorAll('.nav-btn.active').forEach(b=>{b.style.color=curSubj.color});
   document.querySelector('.nav-bar').style.setProperty('--nb-color', curSubj.color);
 
-  // 標題
   document.getElementById('page-title').textContent = curSubj.icon+' '+curSubj.name+'題庫';
   document.getElementById('btn-start').style.background = curSubj.color;
+  document.getElementById('mock-btn-start').style.background = curSubj.color;
 
-  // 處理題目資料
   const raw = DATA_MAP[id]||[];
   allQ = raw.filter(q=>
     q.question&&q.question.length>5&&
@@ -552,27 +908,28 @@ function initSubject(id){
   ).map(q=>({...q,groups:tagQ(q),id:qHash(q)}));
   document.getElementById('stat-total-q').textContent = allQ.length;
 
-  // 年度選單
-  const sel = document.getElementById('filter-exam');
-  sel.innerHTML = '<option value="all">全部考試</option>';
-  [...new Set(allQ.map(q=>{const m=q.exam.match(/^(\d+)年/);return m?m[1]+'年':null}).filter(Boolean))]
-    .sort((a,b)=>b.localeCompare(a))
-    .forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y+' 考試';sel.appendChild(o)});
+  // 年度選單（練習 + 模擬考共用）
+  const yearOpts = [...new Set(allQ.map(q=>{const m=q.exam.match(/^(\d+)年/);return m?m[1]+'年':null}).filter(Boolean))].sort((a,b)=>b.localeCompare(a));
+  [document.getElementById('filter-exam'), document.getElementById('mock-filter-exam')].forEach(sel=>{
+    if(!sel)return;
+    sel.innerHTML = '<option value="all">全部考試</option>';
+    yearOpts.forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y+' 考試';sel.appendChild(o)});
+  });
+  const mockPoolEl = document.getElementById('mock-pool-count');
+  if(mockPoolEl) mockPoolEl.textContent = allQ.length;
 
   updateStats();
   if(curPage==='wrong')renderWrong();
   if(curPage==='analysis')renderAnalysis();
 }
 
-// ── 建立科目切換按鈕 ────────────────────────────────────
-const bar = document.getElementById('subject-bar');
+// ── 建立科目下拉選單 ─────────────────────────────────────
+const subjSel = document.getElementById('subject-select');
 SUBJECTS.forEach(s=>{
-  const btn = document.createElement('button');
-  btn.className='subj-btn';
-  btn.dataset.id=s.id;
-  btn.textContent=s.icon+' '+s.name;
-  btn.onclick=()=>initSubject(s.id);
-  bar.appendChild(btn);
+  const opt = document.createElement('option');
+  opt.value = s.id;
+  opt.textContent = s.icon+' '+s.name;
+  subjSel.appendChild(opt);
 });
 
 // ── 頁面切換 ────────────────────────────────────────────
@@ -585,13 +942,23 @@ function showPage(id){
   const nb=document.getElementById('nav-'+id);nb.classList.add('active');nb.style.color=curSubj.color;
   if(id==='analysis')renderAnalysis();
   if(id==='wrong')renderWrong();
+  if(id==='drill')renderDrill();
+  if(id==='notebook')renderNotebook();
 }
 
 // ── localStorage ────────────────────────────────────────
 function loadS(){try{return JSON.parse(localStorage.getItem(curSubj.store))||{wrongByGroup:{},totalByGroup:{},totalAnswered:0,totalCorrect:0,sessions:0}}catch{return{wrongByGroup:{},totalByGroup:{},totalAnswered:0,totalCorrect:0,sessions:0}}}
-function saveS(s){localStorage.setItem(curSubj.store,JSON.stringify(s))}
-function loadWQ(){try{return JSON.parse(localStorage.getItem(curSubj.wstore))||{}}catch{return{}}}
-function saveWQ(wq){localStorage.setItem(curSubj.wstore,JSON.stringify(wq))}
+function saveS(s){localStorage.setItem(curSubj.store,JSON.stringify(s));_saveToFirestore(curSubj.store,s)}
+function loadWQ(){
+  try{
+    const raw=localStorage.getItem(curSubj.wstore);
+    if(!raw)return{};
+    const parsed=JSON.parse(raw);
+    if(parsed.data)return JSON.parse(parsed.data);
+    return parsed;
+  }catch{return{}}
+}
+function saveWQ(wq){localStorage.setItem(curSubj.wstore,JSON.stringify(wq));_saveToFirestore(curSubj.wstore,{data:JSON.stringify(wq)})}
 function updateStats(){
   const s=loadS();
   document.getElementById('stat-done').textContent=s.totalAnswered||0;
@@ -600,6 +967,28 @@ function updateStats(){
 
 // ── 答題 ────────────────────────────────────────────────
 let quizQ=[],idx=0,score=0,answered=false,sWrong={},sTotal={},lastF='all',lastN=20;
+let _timerInterval=null,_timerSec=30;
+function _startTimer(q){
+  clearInterval(_timerInterval);
+  _timerSec=30;
+  const el=document.getElementById('q-timer');
+  el.className='q-timer';el.textContent=_timerSec;
+  _timerInterval=setInterval(()=>{
+    _timerSec--;
+    el.textContent=_timerSec;
+    el.className='q-timer'+(_timerSec<=10?' danger':_timerSec<=20?' warn':'');
+    if(_timerSec<=0){
+      clearInterval(_timerInterval);
+      if(!answered){
+        const od=document.getElementById('options');
+        const firstBtn=od.querySelector('.option-btn');
+        if(firstBtn) pick('__timeout__',q.answer,firstBtn,od,q);
+      }
+    }
+  },1000);
+}
+function _stopTimer(){clearInterval(_timerInterval);}
+
 function startQuiz(){
   const f=document.getElementById('filter-exam').value;
   const n=parseInt(document.getElementById('num-questions').value)||20;
@@ -613,7 +1002,18 @@ function startQuiz(){
   document.getElementById('progress-fill').style.background=curSubj.color;
   renderQ();
 }
-function quitQuiz(){if(idx>0&&!confirm('確定要離開？'))return;document.getElementById('quiz-overlay').style.display='none'}
+
+function _clearDrillMode(){
+  isDrillMode=false;drillConquered=0;drillGroupName='';
+  document.getElementById('drill-banner').style.display='none';
+}
+function quitQuiz(){
+  if(idx>0&&!confirm('確定要離開？'))return;
+  document.getElementById('quiz-overlay').style.display='none';
+  if(isMockExam){_stopMockTimer();isMockExam=false;document.getElementById('mock-exam-timer').style.display='none';document.getElementById('q-timer').style.display='flex';}
+  if(isDrillMode) _clearDrillMode();
+}
+
 function renderQ(){
   answered=false;const q=quizQ[idx],total=quizQ.length;
   document.getElementById('q-counter').textContent='第 '+(idx+1)+' / '+total+' 題';
@@ -638,16 +1038,23 @@ function renderQ(){
   });
   document.getElementById('feedback').style.display='none';
   document.getElementById('btn-next').style.display='none';
+  if(isMockExam){ clearInterval(_timerInterval); } else { _startTimer(q); }
 }
+
 function pick(chosen,correct,btn,od,q){
-  if(answered)return;answered=true;
+  if(answered)return;answered=true;_stopTimer();
   const ok=chosen===correct;
-  if(ok)score++;
-  else{
+  if(ok){
+    score++;
+    if(isDrillMode) _drillConquer(q.id); // 特訓模式：答對即征服
+  } else {
     q.groups.forEach(g=>{sWrong[g]=(sWrong[g]||0)+1});
-    const wq=loadWQ();
-    if(!wq[q.id])wq[q.id]={question:q.question,options:q.options,answer:q.answer,exam:q.exam,groups:q.groups,wrongCount:0,note:''};
-    wq[q.id].wrongCount++;saveWQ(wq);
+    if(!isDrillMode){ // 特訓模式不重複計入錯題次數
+      const wq=loadWQ();
+      if(!wq[q.id])wq[q.id]={question:q.question,options:q.options,answer:q.answer,exam:q.exam,groups:q.groups,wrongCount:0,note:''};
+      wq[q.id].wrongCount++;wq[q.id].lastWrong=Date.now();saveWQ(wq);
+      saveToNbAuto(curSubj.name,q);
+    }
   }
   od.querySelectorAll('.option-btn').forEach(b=>{b.disabled=true;if(b.querySelector('.option-label').textContent===correct)b.classList.add(ok?'correct':'show-correct')});
   if(!ok)btn.classList.add('wrong');
@@ -657,9 +1064,12 @@ function pick(chosen,correct,btn,od,q){
   const nx=document.getElementById('btn-next');nx.style.display='block';
   nx.textContent=idx+1<quizQ.length?'下一題 →':'查看結果';
 }
+
 function nextQuestion(){idx++;idx>=quizQ.length?showResult():renderQ()}
+
 function showResult(){
   document.getElementById('quiz-overlay').style.display='none';
+  if(isMockExam){_stopMockTimer();isMockExam=false;document.getElementById('mock-exam-timer').style.display='none';document.getElementById('q-timer').style.display='flex';}
   const s=loadS();s.sessions=(s.sessions||0)+1;s.totalAnswered=(s.totalAnswered||0)+quizQ.length;s.totalCorrect=(s.totalCorrect||0)+score;
   Object.entries(sWrong).forEach(([g,w])=>{s.wrongByGroup[g]=(s.wrongByGroup[g]||0)+w});
   Object.entries(sTotal).forEach(([g,t])=>{s.totalByGroup[g]=(s.totalByGroup[g]||0)+t});
@@ -669,20 +1079,25 @@ function showResult(){
   circle.style.background=pct>=80?'#22c55e':pct>=60?'#f59e0b':'#ef4444';
   document.getElementById('final-score').textContent=pct;
   document.getElementById('result-title').textContent=pct>=80?'表現優異！':pct>=60?'繼續加油！':'還需多練習';
-  document.getElementById('result-detail').textContent='答對 '+score+' 題，共 '+total+' 題（正確率 '+pct+'%）';
+  const drillSuffix = isDrillMode ? '　⚔️ 征服 '+drillConquered+' 題' : '';
+  document.getElementById('result-detail').textContent='答對 '+score+' 題，共 '+total+' 題（正確率 '+pct+'%）'+drillSuffix;
+  if(isDrillMode) _clearDrillMode();
   document.getElementById('result-overlay').style.background=curSubj.bg;
   document.getElementById('result-overlay').style.display='block';
   document.getElementById('btn-again').style.background=curSubj.color;
   drawRadar('session-radar',sWrong,sTotal,240);
   drawWeak('session-weak',sWrong,sTotal);
 }
+
 function restartSame(){document.getElementById('result-overlay').style.display='none';document.getElementById('filter-exam').value=lastF;document.getElementById('num-questions').value=lastN;startQuiz()}
 function goHome(){document.getElementById('result-overlay').style.display='none';showPage('practice')}
 
 // ── 錯題 ────────────────────────────────────────────────
 let wrongGroupFilter='all';
 function renderWrong(){
-  const wq=loadWQ(),entries=Object.values(wq);
+  const wq=loadWQ();
+  // 把 key (id) 直接附在每筆資料上，避免之後用 === 比較參考
+  const entries=Object.entries(wq).map(([qid,q])=>({...q,_qid:qid}));
   document.getElementById('wrong-badge').textContent=entries.length+' 題';
   const fd=document.getElementById('wrong-filter');fd.innerHTML='';
   const groups=['all',...new Set(entries.flatMap(q=>q.groups))];
@@ -695,12 +1110,12 @@ function renderWrong(){
   const list=document.getElementById('wrong-list');list.innerHTML='';
   const filtered=wrongGroupFilter==='all'?entries:entries.filter(q=>q.groups.includes(wrongGroupFilter));
   if(!filtered.length){list.innerHTML='<div class="empty-msg">'+(entries.length?'這個分類沒有錯題 🎉':'還沒有錯題記錄<br>答錯的題目會自動收錄到這裡 📌')+'</div>';return}
-  filtered.sort((a,b)=>b.wrongCount-a.wrongCount).forEach(q=>{
+  filtered.sort((a,b)=>(b.lastWrong||0)-(a.lastWrong||0)).forEach(q=>{
+    const qid=q._qid;
     const card=document.createElement('div');card.className='wq-card';
     const yr=q.exam.match(/^(\d+年)/),subj=q.exam.replace(/.*[：:]\s*/,'').trim();
     const tagsHtml=q.groups.map(g=>{const grp=curGroups.find(x=>x.name===g)||{color:'#94a3b8'};return'<span class="kw-tag" style="background:'+grp.color+'18;color:'+grp.color+';border:1px solid '+grp.color+'44">'+g+'</span>'}).join('');
     const optsHtml=Object.keys(q.options).sort().map(k=>'<div class="wq-option'+(k===q.answer?' is-answer':'')+'"><span class="wq-option-label">'+k+'</span><span>'+q.options[k]+'</span></div>').join('');
-    const allWQ=loadWQ();const qid=Object.keys(allWQ).find(id=>allWQ[id]===q)||'';
     const hasNote=q.note&&q.note.trim();
     card.innerHTML='<div class="wq-meta"><span class="wq-exam">'+(yr?yr[1]+' · ':'')+subj+'</span><span class="wq-wrong-count">答錯 '+q.wrongCount+' 次</span></div>'
       +'<div class="wq-groups">'+tagsHtml+'</div>'
@@ -772,6 +1187,14 @@ function drawWeak(cid,wg,tg,append){
   });
 }
 
+// ── Toast ────────────────────────────────────────────────
+function showToast(msg){
+  const t=document.getElementById('toast');
+  if(!t)return;
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
 // ── 深色模式 ────────────────────────────────────────────
 function initDarkMode(){
   const dark = localStorage.getItem('darkMode')==='1';
@@ -782,11 +1205,420 @@ function toggleDark(){
   const isDark = document.body.classList.toggle('dark');
   localStorage.setItem('darkMode', isDark ? '1' : '0');
   document.getElementById('dark-toggle').textContent = isDark ? '☀️' : '🌙';
+  document.body.style.background = isDark ? '' : curSubj.bg;
+}
+
+// ── 主題特訓 ─────────────────────────────────────────────
+let isDrillMode = false;
+let drillConquered = 0;
+let drillGroupName = '';
+
+// 根據字串產生固定色
+function _topicColor(str){
+  let h=0;for(const c of str)h=(Math.imul(31,h)+c.charCodeAt(0))|0;
+  const hue=Math.abs(h)%360;
+  return `hsl(${hue},52%,46%)`;
+}
+
+// 行政法 14 個主題定義（名稱對應 shuati.tw）
+const DRILL_TOPICS = {
+  adminlaw:[
+    {name:'公務人員之權利義務、服務倫理與保障制度',   kw:['公務員','公務人員','服務倫理','保障制度','職務','懲戒','考績','任用']},
+    {name:'行政法之基本原則：依法行政與比例原則',      kw:['比例原則','法律保留','法律優位','依法行政','基本原則','信賴保護','平等原則','明確性原則']},
+    {name:'行政執行之方法、種類與限制',                kw:['行政執行','強制執行','即時強制','代履行','怠金','直接強制','間接強制']},
+    {name:'國家賠償責任之構成要件、範圍與程序',        kw:['國家賠償','損失補償','國賠','特別犧牲','賠償責任']},
+    {name:'行政爭訟之類型、要件與救濟程序',            kw:['行政訴訟','撤銷訴訟','課予義務','確認訴訟','行政法院','起訴','爭訟']},
+    {name:'行政契約之概念、類型、效力與爭議解決',      kw:['行政契約','雙務契約','行政協定','和解契約','私法契約']},
+    {name:'法規命令與行政規則之概念、效力及制定程序',  kw:['法規命令','行政規則','職權命令','授權命令']},
+    {name:'行政罰之構成要件與責任歸屬',                kw:['行政罰','裁罰','罰鍰','沒入','一行為不二罰','行政秩序罰','裁處','處罰']},
+    {name:'訴願之提起、審理與決定程序',                kw:['訴願','訴願人','訴願管轄','訴願法','訴願決定','訴願機關']},
+    {name:'行政處分之撤銷、廢止與失效',                kw:['撤銷','廢止','無效','瑕疵','授益處分','負擔處分']},
+    {name:'行政程序法：當事人、資訊公開與聽證程序',    kw:['行政程序','陳述意見','聽證','閱覽','送達','行政程序法','告知','通知','公告']},
+    {name:'行政機關之組織、權限與任務分配',            kw:['行政機關','委任','委託','委辦','公法人','行政法人','機關']},
+    {name:'行政處分之概念、種類與法律效果',            kw:['行政處分','行政行為','構成要件','法律效果']},
+    {name:'行政機關之管轄權：種類、判斷與變更',        kw:['管轄','土地管轄','事務管轄','移送','管轄衝突','管轄權']},
+  ],
+  faxu:[
+    {name:'法律基本概念：法源、解釋、適用與效力',         kw:['法源','成文法','不成文法','習慣法','法律解釋','文義解釋','目的解釋','類推適用','法律位階','特別法','後法','溯及既往','法律效力','公法','私法','社會法']},
+    {name:'憲法：基本權利保障與大法官解釋',              kw:['基本權利','基本人權','工作權','財產權','人身自由','言論自由','集會結社','宗教自由','生存權','平等原則','受教育','訴訟權','大法官','釋憲','違憲','人民權利']},
+    {name:'憲法：政府組織、權力分立與地方自治',           kw:['總統','行政院','立法院','司法院','考試院','監察院','五院','權力分立','制衡','憲法增修','修憲','地方自治','直轄市','縣市','中央政府','選舉','罷免','覆議']},
+    {name:'民法總則：人格、行為能力與法律行為',           kw:['民法總則','人格權','行為能力','限制行為能力','無行為能力','意思表示','法律行為','代理','無權代理','表見代理','時效','消滅時效','除斥期間','法人','社團','財團']},
+    {name:'民法債編：契約、侵權與債之關係',               kw:['債之發生','契約','買賣','租賃','承攬','委任','贈與','侵權行為','不當得利','無因管理','債之消滅','清償','抵銷','損害賠償','連帶債務','保證','違約金']},
+    {name:'民法物權：所有權、擔保物權與用益物權',         kw:['物權','所有權','共有','善意取得','抵押權','最高限額抵押','質權','留置權','地上權','農育權','不動產役權','典權','占有','物權行為','公示','公信']},
+    {name:'民法親屬繼承：婚姻、親子與遺產',              kw:['親屬','婚姻','結婚','離婚','夫妻財產','父母子女','監護','扶養','繼承','繼承人','應繼分','特留分','遺囑','遺贈','拋棄繼承','代位繼承','限定繼承','收養','認領']},
+    {name:'刑法總則：犯罪構成要件、責任與刑罰',           kw:['刑法總則','犯罪','構成要件','故意','過失','未遂','既遂','中止','共同正犯','教唆犯','幫助犯','正當防衛','緊急避難','罪責','刑罰種類','緩刑','假釋','累犯']},
+    {name:'刑法分則：各種犯罪類型',                      kw:['刑法分則','殺人罪','傷害罪','竊盜','強盜','詐欺','侵占','背信','毀損','偽造','偽造文書','妨害自由','妨害名譽','強制性交','公共危險','貪污','受賄','財產犯罪']},
+    {name:'民事訴訟法：程序、起訴與裁判',                kw:['民事訴訟','訴訟能力','當事人','訴訟標的','管轄','起訴','形成之訴','確認之訴','給付之訴','上訴','再審','判決','裁定','既判力','執行名義','調解','和解']},
+    {name:'刑事訴訟法：偵查、審判與證據',                kw:['刑事訴訟','偵查','告訴','自訴','不起訴','緩起訴','羈押','拘提','逮捕','搜索','扣押','證據','自白','非法證據','無罪推定','辯護','非常上訴']},
+    {name:'行政法基礎：原則、處分、救濟',                kw:['行政法','行政處分','行政契約','行政罰','行政執行','訴願','行政訴訟','法律保留','比例原則','依法行政','信賴保護','行政程序','聽證','國家賠償','法規命令']},
+    {name:'商事法：公司、票據、保險與證交',              kw:['公司法','股份有限公司','有限公司','股東','董事','監察人','章程','股份','票據法','本票','匯票','支票','票據行為','保險法','保險契約','證券交易','有價證券']},
+    {name:'特別法：勞動、消保、性平與涉外',              kw:['勞動基準法','勞工','工資','工時','資遣','退休','職業災害','消費者保護法','消費者','性別平等','性騷擾','國籍','戶籍','涉外民事','準據法','引渡','外國人']},
+  ],
+  adminsci:[
+    {name:'行政學基礎理論：概念、典範與研究途徑',       kw:['行政學概念','公共行政','行政意義','典範','研究途徑','行政學發展','行政生態','比較行政','行政文化','政治行政','威爾遜','古德諾']},
+    {name:'行政組織理論：結構、設計與類型',             kw:['組織理論','組織結構','科層','官僚','韋伯','層級','分工','正式組織','非正式組織','矩陣','委員會','控制幅度','扁平','高聳','組織設計','虛擬組織']},
+    {name:'管理理論：科學管理、人際關係與系統理論',     kw:['科學管理','泰勒','費堯','管理原則','POSDCORB','古立克','行為科學','霍桑','人際關係','系統理論','權變理論','封閉系統','開放系統']},
+    {name:'行政領導與激勵理論',                        kw:['領導','領導理論','領導風格','激勵','需求層次','馬斯洛','赫茲伯格','雙因素','期望理論','X理論','Y理論','Z理論','授權','賦權','情境領導','轉換型領導','動機']},
+    {name:'行政決策理論',                              kw:['決策','決策理論','理性模型','有限理性','漸進主義','混合掃描','垃圾桶','決策過程','西蒙','林布隆','艾森尼','滿意決策']},
+    {name:'行政溝通、協調與衝突管理',                  kw:['溝通','協調','橫向協調','縱向協調','正式溝通','非正式溝通','溝通障礙','衝突管理','衝突','葡萄藤','小道消息']},
+    {name:'人事行政：任用、考績與保障',                kw:['人事','人事行政','文官','功績制','分類','職位分類','品位制','考試','任用','銓敘','考績','訓練','俸給','退休','人力資源','公務人員保障','申訴','復審','行政中立']},
+    {name:'財務行政：預算、會計與審計',                kw:['財務','預算','財務行政','公共預算','編列','審議','決算','會計','審計','採購','績效預算','零基預算','PPBS','複式預算','平衡預算','特別預算']},
+    {name:'行政監督、課責與倫理',                      kw:['監督','行政監督','課責','立法監督','司法監督','行政控制','監察','績效管理','評估','行政倫理','廉政','貪腐','利益衝突','公務倫理','道德','行政責任','廉能']},
+    {name:'公共政策：制定、執行與評估',                kw:['公共政策','政策','政策分析','政策制定','政策執行','政策評估','政策終結','議程設定','政策規劃','利害關係人','政策工具','政策類型','政策問題']},
+    {name:'新公共管理、治理與政府改造',                kw:['新公共管理','NPM','治理','電子化政府','民營化','委外','績效','顧客導向','企業型政府','政府改造','行政革新','再造','新公共服務','全球治理','協力治理']},
+    {name:'地方政府與地方自治',                        kw:['地方政府','地方行政','地方自治','縣市','鄉鎮','地方財政','地方立法','中央地方','地方制度','地方稅','直轄市','地方議會']},
+    {name:'非營利組織與公民社會',                      kw:['非營利','NPO','NGO','第三部門','公民社會','志願服務','社會企業','基金會','協會','公益','慈善','非政府','社會資本']},
+    {name:'比較行政與行政生態',                        kw:['比較行政','比較','各國行政','開發中國家','行政文化','行政生態','官僚文化','政治文化','里格斯','稜柱型','巴薩爾','農業社會','工業社會']},
+  ],
+};
+
+function _matchTopic(q, topic){
+  // 優先用 topic_label 精確匹配（Python 已預先分類）
+  if(q.topic_label) return q.topic_label === topic.name;
+  // fallback：關鍵字匹配
+  const txt = (q.question||'')+Object.values(q.options||{}).join('');
+  return topic.kw.some(kw=>txt.includes(kw));
+}
+
+function renderDrill(){
+  const wq     = loadWQ();
+  const wqList = Object.entries(wq).map(([qid,q])=>({...q,_qid:qid}));
+  const chips  = document.getElementById('drill-chips');
+  const hint   = document.getElementById('drill-hint');
+  chips.innerHTML = '';
+
+  // 征服數徽章（仍以錯題征服計算）
+  const conquered = wqList.filter(q=>q.conquered).length;
+  const badge = document.getElementById('drill-total-conquered');
+  if(conquered > 0){ badge.textContent='⚔️ 已征服 '+conquered+' 題'; badge.style.display=''; }
+  else badge.style.display='none';
+
+  const topics = DRILL_TOPICS[curSubjId];
+  if(!topics){
+    chips.innerHTML = '<div class="drill-empty">其他科目主題特訓建置中 🔧</div>';
+    hint.style.display='none'; return;
+  }
+
+  hint.style.display='none';
+  topics.forEach(topic=>{
+    const color = _topicColor(topic.name);
+    // 從全題庫篩出這個主題的題目
+    const topicQs = allQ.filter(q=>_matchTopic(q, topic));
+    const total   = topicQs.length;
+    // 這個主題的錯題數（從錯題本）
+    const wrongCnt = wqList.filter(q=>_matchTopic(q, topic) && !q.conquered).length;
+
+    const chip = document.createElement('button');
+    chip.className = 'drill-chip' + (wrongCnt > 0 ? ' has-wrong' : '');
+    chip.style.cssText = `color:${color};border-color:${color}44;background:${color}12`;
+
+    // 主要數字顯示總題數，有錯題則另外標紅
+    chip.innerHTML = topic.name
+      + '<span class="drill-chip-count">'+total+'</span>'
+      + (wrongCnt > 0 ? '<span style="font-size:10px;background:#ef4444;color:#fff;padding:1px 6px;border-radius:99px;font-weight:800">'+wrongCnt+'錯</span>' : '');
+
+    chip.onclick = ()=>startDrill(topic.name, topicQs);
+    chips.appendChild(chip);
+  });
+}
+
+function startDrill(groupName, qs){
+  isDrillMode = true;
+  drillConquered = 0;
+  drillGroupName = groupName;
+
+  // 從 allQ 取題（直接使用題庫格式）
+  quizQ = [...qs].sort(()=>Math.random()-.5);
+
+  idx=0; score=0; sWrong={}; sTotal={};
+  document.getElementById('quiz-overlay').style.background = curSubj.bg;
+  document.getElementById('quiz-overlay').style.display = 'block';
+  document.getElementById('progress-fill').style.background = curSubj.color;
+  document.getElementById('mock-exam-timer').style.display = 'none';
+  document.getElementById('q-timer').style.display = 'flex';
+
+  const banner = document.getElementById('drill-banner');
+  banner.style.display = 'flex';
+  document.getElementById('drill-conquered-live').textContent = '⚔️ 0';
+
+  renderQ();
+}
+
+function _drillConquer(qid){
+  // 征服：在錯題本標記 conquered，並更新
+  const wq = loadWQ();
+  if(wq[qid]){
+    wq[qid].conquered = true;
+    saveWQ(wq);
+  }
+  drillConquered++;
+  document.getElementById('drill-conquered-live').textContent = '⚔️ '+drillConquered;
+}
+
+// ── 模擬考 ───────────────────────────────────────────────
+let isMockExam = false;
+let mockTimerInterval = null;
+let mockTimerSec = 3600;
+
+function updateMockPoolCount(){
+  const f = document.getElementById('mock-filter-exam').value;
+  const cnt = f==='all' ? allQ.length : allQ.filter(q=>q.exam.startsWith(f)).length;
+  const el = document.getElementById('mock-pool-count');
+  if(el) el.textContent = cnt;
+}
+
+function startMockExam(){
+  const f = document.getElementById('mock-filter-exam').value;
+  let pool = f==='all' ? allQ : allQ.filter(q=>q.exam.startsWith(f));
+  if(!pool.length){alert('該範圍沒有題目');return}
+  if(pool.length < 10){alert('題目數量不足（需至少 10 題）');return}
+  isMockExam = true;
+  quizQ = [...pool].sort(()=>Math.random()-.5).slice(0, Math.min(50, pool.length));
+  idx=0; score=0; sWrong={}; sTotal={};
+  document.getElementById('quiz-overlay').style.background = curSubj.bg;
+  document.getElementById('quiz-overlay').style.display = 'block';
+  document.getElementById('progress-fill').style.background = curSubj.color;
+  document.getElementById('mock-exam-timer').style.display = 'flex';
+  document.getElementById('q-timer').style.display = 'none';
+  _startMockTimer();
+  renderQ();
+}
+
+function _startMockTimer(){
+  mockTimerSec = 3600;
+  clearInterval(mockTimerInterval);
+  _updateMockTimerDisplay();
+  mockTimerInterval = setInterval(()=>{
+    mockTimerSec--;
+    _updateMockTimerDisplay();
+    if(mockTimerSec <= 0){
+      clearInterval(mockTimerInterval);
+      if(!answered){
+        const od = document.getElementById('options');
+        od.querySelectorAll('.option-btn').forEach(b=>b.disabled=true);
+      }
+      showToast('⏰ 時間到，自動交卷！');
+      setTimeout(showResult, 800);
+    }
+  },1000);
+}
+
+function _updateMockTimerDisplay(){
+  const m = Math.floor(mockTimerSec/60);
+  const s = mockTimerSec % 60;
+  const el = document.getElementById('mock-exam-timer');
+  if(!el) return;
+  el.textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  el.className = 'mock-exam-timer'+(mockTimerSec<=300?' danger':mockTimerSec<=600?' warn':'');
+  el.style.display = 'flex';
+}
+
+function _stopMockTimer(){
+  clearInterval(mockTimerInterval);
+}
+
+// ── 瀏覽人次 ─────────────────────────────────────────────
+(async function initVisitCounter(){
+  try {
+    const ref = _db.collection('stats').doc('visitors');
+    await ref.set({count: firebase.firestore.FieldValue.increment(1)}, {merge:true});
+    const snap = await ref.get();
+    const n = snap.data()?.count || 0;
+    const el = document.getElementById('visit-count');
+    if(el) el.textContent = n >= 10000 ? (n/10000).toFixed(1)+'萬' : n.toLocaleString();
+  } catch(e) {
+    const el = document.getElementById('visit-count');
+    if(el) el.textContent = '';
+  }
+})();
+
+// ── 錯題賺錢 ────────────────────────────────────────────
+(function initNb(){
+  // 初始化科目選單
+  const nbSubjEl=document.getElementById('nbSubj');
+  const nbFilterEl=document.getElementById('nbFilter');
+  SUBJECTS.forEach(s=>{
+    const o=document.createElement('option');o.value=s.name;o.textContent=s.name;nbSubjEl.appendChild(o);
+    const o2=o.cloneNode(true);nbFilterEl.appendChild(o2);
+  });
+  // 記憶 Anki 牌組
+  const di=document.getElementById('ankiDeck');
+  di.value=localStorage.getItem('ankiDeckName')||'';
+  di.addEventListener('input',()=>localStorage.setItem('ankiDeckName',di.value));
+})();
+
+let nbItems=[];
+let _nbCache=[];
+
+function loadAutoItems(){try{return JSON.parse(localStorage.getItem('nb_auto_items')||'[]');}catch{return[];}}
+function saveAutoItems(items){try{localStorage.setItem('nb_auto_items',JSON.stringify(items));}catch{}}
+
+function saveToNbAuto(subj,q){
+  try{
+    const ts=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    let items=loadAutoItems();
+    const idx=items.findIndex(x=>x.id===q.id);
+    if(idx>=0){items[idx].wrongCount=(items[idx].wrongCount||1)+1;items[idx].ts=ts;}
+    else{items.unshift({id:q.id,subj,q:q.question,correct:q.answer,exam:q.exam||'',note:'',ts,corrected:false,source:'auto',wrongCount:1});}
+    saveAutoItems(items);
+  }catch(e){}
+}
+
+function addNbItem(){
+  const subj=document.getElementById('nbSubj').value;
+  const q=document.getElementById('nbQuestion').value.trim();
+  if(!q){alert('請輸入題目內容');return;}
+  const correct=document.getElementById('nbCorrect').value.trim();
+  const mine=document.getElementById('nbMine').value.trim();
+  const note=document.getElementById('nbNote').value.trim();
+  const ts=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  nbItems.unshift({id:Date.now(),subj,q,correct,mine,note,ts,corrected:false,source:'manual'});
+  document.getElementById('nbQuestion').value='';
+  document.getElementById('nbCorrect').value='';
+  document.getElementById('nbMine').value='';
+  document.getElementById('nbNote').value='';
+  showToast('錯題已儲存');renderNotebook();
+}
+
+function nbToggleCorrect(id){
+  const item=nbItems.find(x=>x.id===id);
+  if(!item)return;
+  item.corrected=!item.corrected;
+  showToast(item.corrected?'已標記訂正':'已取消訂正');renderNotebook();
+}
+function nbDelete(id){nbItems=nbItems.filter(x=>x.id!==id);showToast('已刪除');renderNotebook();}
+
+function nbToggleCorrectAuto(id){
+  const items=loadAutoItems();
+  const item=items.find(x=>x.id===id);
+  if(!item)return;
+  item.corrected=!item.corrected;
+  saveAutoItems(items);
+  showToast(item.corrected?'已標記訂正':'已取消訂正');renderNotebook();
+}
+function nbDeleteAuto(id){saveAutoItems(loadAutoItems().filter(x=>x.id!==id));showToast('已刪除');renderNotebook();}
+
+function renderNotebook(){
+  const search=document.getElementById('nbSearch').value.trim().toLowerCase();
+  const filterSubj=document.getElementById('nbFilter').value;
+  const filterStatus=document.getElementById('nbStatusFilter').value;
+  const autoItems=loadAutoItems().map(x=>({...x,_auto:true}));
+  const allItems=[...nbItems.map(x=>({...x,_auto:false})),...autoItems];
+  let list=allItems.filter(x=>{
+    if(filterSubj&&x.subj!==filterSubj)return false;
+    if(filterStatus==='pending'&&x.corrected)return false;
+    if(filterStatus==='corrected'&&!x.corrected)return false;
+    if(search&&!x.q.toLowerCase().includes(search)&&!(x.note||'').toLowerCase().includes(search))return false;
+    return true;
+  });
+  _nbCache=list;
+  document.getElementById('nbCount').textContent='共 '+list.length+' 題（手動 '+nbItems.length+'，自動 '+autoItems.length+'）';
+  const el=document.getElementById('nbList');
+  if(!list.length){el.innerHTML='<div class="empty-msg">尚無錯題記錄<br>在題庫答錯後會自動出現在這裡</div>';return;}
+  el.innerHTML=list.map((x,i)=>{
+    const labels=['(A)','(B)','(C)','(D)','(E)'];
+    const meta=[];
+    if(x.correct)meta.push(`<span class="nb-meta-pair">正確答案：<strong>${x.correct}</strong></span>`);
+    if(x.mine)meta.push(`<span class="nb-meta-pair">我的答案：<strong style="color:#ef4444">${x.mine}</strong></span>`);
+    if(x.exam)meta.push(`<span class="nb-meta-pair">來源：${x.exam}</span>`);
+    if(x.note)meta.push(`<span class="nb-meta-pair">備註：<strong>${x.note}</strong></span>`);
+    if(x._auto&&x.wrongCount>1)meta.push(`<span class="nb-meta-pair" style="color:#ef4444">答錯 ${x.wrongCount} 次</span>`);
+    const srcTag=x._auto?`<span style="font-size:10px;color:#aaa;background:#f0f0f0;padding:1px 6px;border-radius:4px">自動</span>`:'';
+    const toggleFn=x._auto?`nbToggleCorrectAuto('${x.id}')`:`nbToggleCorrect(${x.id})`;
+    const deleteFn=x._auto?`nbDeleteAuto('${x.id}')`:`nbDelete(${x.id})`;
+    return`<div class="nb-item${x.corrected?' corrected':''}">
+      <div class="nb-item-header">
+        <span class="nb-item-subj">${x.subj}</span>${srcTag}
+        ${x.corrected?'<span class="nb-corrected-badge">✓ 已訂正</span>':''}
+        <span class="nb-item-date">${x.ts}</span>
+      </div>
+      <div class="nb-item-q">${x.q.replace(/</g,'&lt;')}</div>
+      ${meta.length?`<div class="nb-item-meta">${meta.join('')}</div>`:''}
+      <div class="nb-item-actions">
+        <button class="${x.corrected?'btn-nb-uncorrect':'btn-nb-correct'}" onclick="${toggleFn}">${x.corrected?'取消訂正':'✓ 標記訂正'}</button>
+        <button class="btn-anki" onclick="ankiPushOne(_nbCache[${i}])">🃏 推送</button>
+        <button class="btn-nb-del" onclick="${deleteFn}">刪除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Anki ────────────────────────────────────────────────
+function ankiDeckName(){return document.getElementById('ankiDeck').value.trim()||'Default';}
+async function ankiRequest(action,params={}){
+  const r=await fetch('http://localhost:8765',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,version:6,params})});
+  return r.json();
+}
+function buildAnkiNote(x,deck){
+  const labels=['(A)','(B)','(C)','(D)','(E)'];
+  let front=x.q||'';
+  if(x.options&&x.options.length)front+='\n\n'+x.options.map((o,i)=>labels[i]+' '+o).join('\n');
+  if(x.note)front+='\n\n【備註】'+x.note;
+  let back='';
+  if(x.correct){
+    if(x.options){const ci=x.options.indexOf(x.correct);back=(ci>=0?labels[ci]+' ':'')+x.correct;}
+    else back=x.correct;
+    back='✅ 正確答案：'+back;
+  }
+  if(x.exam)back+='\n\n📋 來源：'+x.exam;
+  if(x.subj)back+='\n🏷️ 科目：'+x.subj;
+  if(x.wrongCount>1)back+='\n❌ 答錯 '+x.wrongCount+' 次';
+  return{deckName:deck,modelName:'Basic',fields:{Front:front.replace(/\n/g,'<br>'),Back:back.replace(/\n/g,'<br>')},options:{allowDuplicate:false,duplicateScope:'deck'},tags:['錯題賺錢',x.subj||''].filter(Boolean)};
+}
+async function ankiCheckConnect(){
+  const st=document.getElementById('ankiStatus');st.style.display='';st.className='anki-status';st.textContent='連線中…';
+  try{const r=await ankiRequest('version');if(r.error)throw new Error(r.error);st.className='anki-status ok';st.textContent='✓ 連線成功';}
+  catch(e){st.className='anki-status err';st.textContent='✗ 無法連線，請確認 Anki 已開啟且 CORS 已設定';}
+}
+async function ankiPushOne(x){
+  try{const r=await ankiRequest('addNote',{note:buildAnkiNote(x,ankiDeckName())});
+    if(r.error){if(r.error.includes('duplicate'))showToast('⚠️ 此題已在 Anki 中');else showToast('✗ '+r.error);}
+    else showToast('🃏 已推送到 '+ankiDeckName());}
+  catch(e){showToast('✗ 無法連線 AnkiConnect');}
+}
+async function ankiPushAll(){
+  if(!_nbCache.length){showToast('沒有可推送的題目');return;}
+  showToast('推送中…');let ok=0,dup=0,fail=0;
+  for(const x of _nbCache){try{const r=await ankiRequest('addNote',{note:buildAnkiNote(x,ankiDeckName())});if(r.error){if(r.error.includes('duplicate'))dup++;else fail++;}else ok++;}catch{fail++;break;}}
+  showToast(`推送完成：新增 ${ok}，重複 ${dup}，失敗 ${fail}`);
+}
+async function ankiPullSync(){
+  const deck=ankiDeckName();showToast('同步中…');
+  try{
+    const findR=await ankiRequest('findNotes',{query:`deck:"${deck}" tag:錯題賺錢`});
+    if(findR.error)throw new Error(findR.error);
+    const noteIds=findR.result||[];
+    if(!noteIds.length){showToast('Anki 牌組裡沒有標記「錯題賺錢」的卡片');return;}
+    const infoR=await ankiRequest('notesInfo',{notes:noteIds});
+    const notes=infoR.result||[];
+    const cardIdsR=await ankiRequest('findCards',{query:`deck:"${deck}" tag:錯題賺錢`});
+    const cardsR=await ankiRequest('cardsInfo',{cards:cardIdsR.result||[]});
+    const correctedNotes=new Set();
+    (cardsR.result||[]).forEach(c=>{if(c.interval>=2)correctedNotes.add(c.note);});
+    const autoItems=loadAutoItems();
+    let imported=0,updated=0;
+    notes.forEach(note=>{
+      const front=(note.fields.Front?.value||'').replace(/<br>/g,'\n').replace(/<[^>]+>/g,'').trim();
+      const back=(note.fields.Back?.value||'').replace(/<br>/g,'\n').replace(/<[^>]+>/g,'').trim();
+      if(!front)return;
+      const correctMatch=back.match(/正確答案：(.+)/);const subjMatch=back.match(/科目：(.+)/);
+      const correct=correctMatch?correctMatch[1].trim():'';const subj=subjMatch?subjMatch[1].trim():'（Anki 匯入）';
+      const isCorrected=correctedNotes.has(note.noteId);
+      const ts=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const autoIdx=autoItems.findIndex(x=>x.q&&front.startsWith(x.q.substring(0,30)));
+      if(autoIdx>=0){autoItems[autoIdx].corrected=isCorrected;updated++;return;}
+      const nbIdx=nbItems.findIndex(x=>x.q&&front.startsWith(x.q.substring(0,30)));
+      if(nbIdx>=0){nbItems[nbIdx].corrected=isCorrected;updated++;return;}
+      nbItems.unshift({id:Date.now()+Math.random(),subj,q:front,correct,mine:'',note:'',ts,corrected:isCorrected,source:'anki'});imported++;
+    });
+    saveAutoItems(autoItems);
+    showToast(`同步完成：新匯入 ${imported}，更新 ${updated}`);renderNotebook();
+  }catch(e){showToast('✗ 同步失敗：'+(e.message.includes('fetch')?'請確認 Anki 已開啟':e.message));}
 }
 
 // ── 啟動 ────────────────────────────────────────────────
 initDarkMode();
-initSubject(SUBJECTS[0].id);
+initSubject(window.__initSubj || SUBJECTS[0].id);
 </script>
 </body>
 </html>
