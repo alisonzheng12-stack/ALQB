@@ -336,6 +336,22 @@ body.dark .btn-anki{background:#3a2e00;color:#ffd566;border-color:#7a5f00}
 .btn-nb-correct{background:#22c55e;color:#fff;border:none;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer}
 .btn-nb-uncorrect{background:#f0fdf4;color:#16a34a;border:1px solid #22c55e;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer}
 .btn-nb-del{background:#fff5f5;color:#dc2626;border:1px solid #ef4444;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer}
+.lv-card{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:14px;padding:16px 20px;margin-bottom:14px;color:#fff;position:relative;overflow:hidden}
+.lv-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(79,125,243,.15),rgba(124,58,237,.15));pointer-events:none}
+.lv-badge{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#4f7df3,#7c3aed);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 16px rgba(79,125,243,.4);border:2px solid rgba(255,255,255,.2)}
+.lv-badge .lv-num{font-size:11px;font-weight:800;line-height:1;letter-spacing:.5px;opacity:.8}
+.lv-badge .lv-val{font-size:20px;font-weight:900;line-height:1.1}
+.lv-info{flex:1;min-width:0}
+.lv-title{font-size:14px;font-weight:700;color:#c4b5fd;margin-bottom:4px}
+.lv-exp-row{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.6);margin-bottom:6px}
+.lv-bar-wrap{height:8px;background:rgba(255,255,255,.15);border-radius:99px;overflow:hidden}
+.lv-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#4f7df3,#7c3aed);transition:width .6s ease}
+.lv-total-exp{font-size:10px;color:rgba(255,255,255,.4);margin-top:5px}
+.lv-999 .lv-badge{background:linear-gradient(135deg,#f59e0b,#ef4444);box-shadow:0 4px 20px rgba(245,158,11,.5)}
+.lv-999 .lv-bar-fill{background:linear-gradient(90deg,#f59e0b,#ef4444)}
+.lv-999 .lv-title{color:#fcd34d}
+@keyframes lvup{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
+.lv-badge.lvup{animation:lvup .5s ease}
 
 /* PWA Standalone */
 @media (display-mode: standalone) {
@@ -769,6 +785,22 @@ if('serviceWorker' in navigator){
 <!-- 錯題賺錢頁 -->
 <div class="page" id="page-notebook">
   <div class="page-header">💰 錯題賺錢</div>
+
+  <div class="lv-card" id="lvCard">
+    <div class="lv-badge" id="lvBadge">
+      <span class="lv-num">LV</span>
+      <span class="lv-val" id="lvNum">1</span>
+    </div>
+    <div class="lv-info">
+      <div class="lv-title" id="lvTitle">初學者</div>
+      <div class="lv-exp-row">
+        <span id="lvExpCur">0 / 100 EXP</span>
+        <span id="lvNextLabel">→ LV 2</span>
+      </div>
+      <div class="lv-bar-wrap"><div class="lv-bar-fill" id="lvBar" style="width:0%"></div></div>
+      <div class="lv-total-exp" id="lvTotalExp">累計 0 EXP</div>
+    </div>
+  </div>
 
   <div class="nb-form">
     <div class="nb-form-row">
@@ -1457,6 +1489,57 @@ function _stopMockTimer(){
 let nbItems=[];
 let _nbCache=[];
 
+// ── 等級系統 ─────────────────────────────────────────────
+const LV_TITLES=[
+  [1,  '初學者'],[11,'見習生'],[31,'學徒'],[61,'熟練者'],
+  [101,'行家'],[201,'精英'],[301,'強者'],[501,'大師'],
+  [701,'宗師'],[901,'傳說'],[999,'⚡ 滿級王']
+];
+function getLvTitle(lv){
+  let title='初學者';
+  for(const [min,t] of LV_TITLES){if(lv>=min)title=t;}
+  return title;
+}
+function loadExp(){return parseInt(localStorage.getItem('nb_total_exp')||'0');}
+function saveExp(v){localStorage.setItem('nb_total_exp',String(v));}
+function calcLevel(totalExp){return Math.min(Math.floor(totalExp/100),999);}
+function gainExp(amount){
+  const oldExp=loadExp();
+  const oldLv=calcLevel(oldExp);
+  const newExp=oldExp+amount;
+  const newLv=calcLevel(newExp);
+  saveExp(newExp);
+  renderLevel();
+  if(newLv>oldLv){
+    const badge=document.getElementById('lvBadge');
+    if(badge){badge.classList.remove('lvup');void badge.offsetWidth;badge.classList.add('lvup');}
+    showToast('🎉 升級！LV '+newLv+' '+getLvTitle(newLv));
+  }
+}
+function renderLevel(){
+  const totalExp=loadExp();
+  const lv=calcLevel(totalExp);
+  const expInLv=lv<999?totalExp-(lv*100):100;
+  const expToNext=100;
+  const pct=lv<999?Math.round(expInLv/expToNext*100):100;
+  const title=getLvTitle(lv);
+  const card=document.getElementById('lvCard');
+  if(!card)return;
+  document.getElementById('lvNum').textContent=lv;
+  document.getElementById('lvTitle').textContent=title;
+  document.getElementById('lvBar').style.width=pct+'%';
+  document.getElementById('lvTotalExp').textContent='累計 '+totalExp+' EXP';
+  if(lv>=999){
+    card.classList.add('lv-999');
+    document.getElementById('lvExpCur').textContent='MAX EXP';
+    document.getElementById('lvNextLabel').textContent='滿級！';
+  } else {
+    card.classList.remove('lv-999');
+    document.getElementById('lvExpCur').textContent=expInLv+' / '+expToNext+' EXP';
+    document.getElementById('lvNextLabel').textContent='→ LV '+(lv+1);
+  }
+}
+
 function loadAutoItems(){try{return JSON.parse(localStorage.getItem('nb_auto_items')||'[]');}catch{return[];}}
 function saveAutoItems(items){try{localStorage.setItem('nb_auto_items',JSON.stringify(items));}catch{}}
 
@@ -1466,7 +1549,7 @@ function saveToNbAuto(subj,q){
     let items=loadAutoItems();
     const idx=items.findIndex(x=>x.id===q.id);
     if(idx>=0){items[idx].wrongCount=(items[idx].wrongCount||1)+1;items[idx].ts=ts;}
-    else{items.unshift({id:q.id,subj,q:q.question,correct:q.answer,exam:q.exam||'',note:'',ts,corrected:false,source:'auto',wrongCount:1});}
+    else{items.unshift({id:q.id,subj,q:q.question,correct:q.answer,exam:q.exam||'',note:'',ts,corrected:false,source:'auto',wrongCount:1});gainExp(10);}
     saveAutoItems(items);
   }catch(e){}
 }
@@ -1484,7 +1567,8 @@ function addNbItem(){
   document.getElementById('nbCorrect').value='';
   document.getElementById('nbMine').value='';
   document.getElementById('nbNote').value='';
-  showToast('錯題已儲存');renderNotebook();
+  gainExp(10);
+  showToast('錯題已儲存 ＋10 EXP');renderNotebook();
 }
 
 function nbToggleCorrect(id){
@@ -1519,6 +1603,7 @@ function renderNotebook(){
     return true;
   });
   _nbCache=list;
+  renderLevel();
   document.getElementById('nbCount').textContent='共 '+list.length+' 題（手動 '+nbItems.length+'，自動 '+autoItems.length+'）';
   const el=document.getElementById('nbList');
   if(!list.length){el.innerHTML='<div class="empty-msg">尚無錯題記錄<br>在題庫答錯後會自動出現在這裡</div>';return;}
@@ -1621,7 +1706,7 @@ async function ankiPullSync(){
       if(autoIdx>=0){autoItems[autoIdx].corrected=isCorrected;updated++;return;}
       const nbIdx=nbItems.findIndex(x=>x.q&&front.startsWith(x.q.substring(0,30)));
       if(nbIdx>=0){nbItems[nbIdx].corrected=isCorrected;updated++;return;}
-      nbItems.unshift({id:Date.now()+Math.random(),subj,q:front,correct,mine:'',note:'',ts,corrected:isCorrected,source:'anki'});imported++;
+      nbItems.unshift({id:Date.now()+Math.random(),subj,q:front,correct,mine:'',note:'',ts,corrected:isCorrected,source:'anki'});gainExp(10);imported++;
     });
     saveAutoItems(autoItems);
     showToast(`同步完成：新匯入 ${imported}，更新 ${updated}`);renderNotebook();
