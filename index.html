@@ -1606,12 +1606,6 @@ async function ankiPullSync(){
     (cardsR.result||[]).forEach(c=>{if(c.interval>=2)correctedNotes.add(c.note);});
     const autoItems=loadAutoItems();
     let imported=0,updated=0;
-    if(notes.length>0){
-      const firstNote=notes[0];
-      const fieldNames=Object.keys(firstNote.fields||{}).join(', ');
-      showToast('欄位名稱：'+fieldNames);
-      await new Promise(r=>setTimeout(r,2000));
-    }
     notes.forEach(note=>{
       const fieldKeys=Object.keys(note.fields||{});
       const frontKey=fieldKeys[0]||'Front';
