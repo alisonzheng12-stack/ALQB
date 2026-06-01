@@ -33,14 +33,18 @@ _auth.onAuthStateChanged(user => {
   const btn     = document.getElementById('login-btn');
   const userInfo= document.getElementById('user-info');
   const userEmail=document.getElementById('user-email');
+  const nbNav = document.getElementById('nav-notebook');
   if (user) {
     if (btn)       btn.style.display = 'none';
     if (userInfo)  userInfo.style.display = 'flex';
     if (userEmail) userEmail.textContent = user.email;
+    if (nbNav)     nbNav.style.display = '';
     _loadFromFirestore();
   } else {
     if (btn)       btn.style.display = 'flex';
     if (userInfo)  userInfo.style.display = 'none';
+    if (nbNav)     nbNav.style.display = 'none';
+    if (typeof curPage !== 'undefined' && curPage === 'notebook') showPage('practice');
   }
 });
 
@@ -694,7 +698,7 @@ if('serviceWorker' in navigator){
   <button class="nav-btn" id="nav-analysis" onclick="showPage('analysis')">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 010 20"/><path d="M2 12h20"/><path d="M12 2c2.8 2.7 4 6 4 10s-1.2 7.3-4 10"/></svg>分析
   </button>
-  <button class="nav-btn" id="nav-notebook" onclick="showPage('notebook')">
+  <button class="nav-btn" id="nav-notebook" onclick="showPage('notebook')" style="display:none">
     <svg viewBox="0 0 24 24"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg>賺錢
   </button>
 </nav>
@@ -943,7 +947,10 @@ function showPage(id){
   if(id==='analysis')renderAnalysis();
   if(id==='wrong')renderWrong();
   if(id==='drill')renderDrill();
-  if(id==='notebook')renderNotebook();
+  if(id==='notebook'){
+    if(!_uid){showToast('請先登入才能使用錯題賺錢');showPage('practice');return;}
+    renderNotebook();
+  }
 }
 
 // ── localStorage ────────────────────────────────────────
