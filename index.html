@@ -115,6 +115,8 @@ async function _loadFromFirestore() {
     if (typeof updateStats === 'function') updateStats();
     if (typeof renderWrong === 'function' && typeof curPage !== 'undefined' && curPage === 'wrong') renderWrong();
     if (typeof renderAnalysis === 'function' && typeof curPage !== 'undefined' && curPage === 'analysis') renderAnalysis();
+    if (typeof renderLevel === 'function') renderLevel();
+    if (typeof renderWallet === 'function') renderWallet();
     showToast('雲端同步完成 ☁️');
   } catch(e) {}
 }
@@ -1511,8 +1513,8 @@ function getLvTitle(lv){
   for(const [min,t] of LV_TITLES){if(lv>=min)title=t;}
   return title;
 }
-function loadWallet(){return parseInt(localStorage.getItem('nb_wallet')||'0');}
-function saveWallet(v){localStorage.setItem('nb_wallet',String(v));}
+function loadWallet(){try{const d=localStorage.getItem('nb_wallet');if(!d)return 0;const p=JSON.parse(d);return typeof p==='object'?p.amount||0:parseInt(p)||0;}catch{return 0;}}
+function saveWallet(v){localStorage.setItem('nb_wallet',JSON.stringify({amount:v}));_saveToFirestore('nb_wallet',{amount:v});}
 function renderWallet(){const el=document.getElementById('walletAmount');if(el)el.textContent=loadWallet().toLocaleString();}
 function earnCoins(sourceEl){
   const coins=Math.floor(Math.random()*10)+1;
@@ -1529,8 +1531,8 @@ function earnCoins(sourceEl){
   setTimeout(()=>pop.remove(),900);
   showToast('💰 訂正獲得 +'+coins+' 元！');
 }
-function loadExp(){return parseInt(localStorage.getItem('nb_total_exp')||'0');}
-function saveExp(v){localStorage.setItem('nb_total_exp',String(v));}
+function loadExp(){try{const d=localStorage.getItem('nb_total_exp');if(!d)return 0;const p=JSON.parse(d);return typeof p==='object'?p.exp||0:parseInt(p)||0;}catch{return 0;}}
+function saveExp(v){localStorage.setItem('nb_total_exp',JSON.stringify({exp:v}));_saveToFirestore('nb_total_exp',{exp:v});}
 function calcLevel(totalExp){return Math.min(Math.floor(totalExp/100),999);}
 function gainExp(amount){
   const oldExp=loadExp();
