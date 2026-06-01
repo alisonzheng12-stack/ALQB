@@ -1502,8 +1502,10 @@ function _stopMockTimer(){
   di.addEventListener('input',()=>localStorage.setItem('ankiDeckName',di.value));
 })();
 
-let nbItems=[];
 let _nbCache=[];
+function loadManualItems(){try{return JSON.parse(localStorage.getItem('nb_manual_items')||'[]');}catch{return[];}}
+function saveManualItems(items){try{localStorage.setItem('nb_manual_items',JSON.stringify(items));}catch{}}
+let nbItems=loadManualItems();
 
 // ── 等級系統 ─────────────────────────────────────────────
 const LV_TITLES=[
@@ -1598,6 +1600,7 @@ function addNbItem(){
   const note=document.getElementById('nbNote').value.trim();
   const ts=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
   nbItems.unshift({id:Date.now(),subj,q,correct,mine,note,ts,corrected:false,source:'manual'});
+  saveManualItems(nbItems);
   document.getElementById('nbQuestion').value='';
   document.getElementById('nbCorrect').value='';
   document.getElementById('nbMine').value='';
@@ -1610,11 +1613,27 @@ function nbToggleCorrect(id,btn){
   const item=nbItems.find(x=>x.id===id);
   if(!item)return;
   item.corrected=!item.corrected;
+  saveManualItems(nbItems);
   if(item.corrected)earnCoins(btn);
   else showToast('已取消訂正');
   renderNotebook();
 }
-function nbDelete(id){nbItems=nbItems.filter(x=>x.id!==id);showToast('已刪除');renderNotebook();}
+function nbDelete(id){nbItems=nbItems.filter(x=>x.id!==id);saveManualItems(nbItems);showToast('已刪除');renderNotebook();}
+function nbSaveNote(id,text){
+  const item=nbItems.find(x=>x.id===id);
+  if(!item)return;
+  item.note=text;
+  saveManualItems(nbItems);
+  showToast('詳解已儲存');renderNotebook();
+}
+function nbSaveNoteAuto(id,text){
+  const items=loadAutoItems();
+  const item=items.find(x=>x.id===id);
+  if(!item)return;
+  item.note=text;
+  saveAutoItems(items);
+  showToast('詳解已儲存');renderNotebook();
+}
 
 function nbToggleCorrectAuto(id,btn){
   const items=loadAutoItems();
@@ -1665,6 +1684,14 @@ function renderNotebook(){
       </div>
       <div class="nb-item-q">${x.q.replace(/</g,'&lt;')}</div>
       ${meta.length?`<div class="nb-item-meta">${meta.join('')}</div>`:''}
+      ${x.note?`<div style="margin-top:4px;padding:8px 10px;background:rgba(34,197,94,.08);border-radius:8px;border-left:3px solid #22c55e;font-size:12px;color:#166534;white-space:pre-wrap">${x.note.replace(/</g,'&lt;')}</div>`:''}
+      <details style="margin-top:4px">
+        <summary style="font-size:12px;color:var(--accent,#4f7df3);cursor:pointer;list-style:none">✏️ ${x.note?'編輯詳解':'新增詳解'}</summary>
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:6px">
+          <textarea id="note-${x._auto?'a':'m'}-${x.id}" style="width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,.2);border-radius:8px;font-size:12px;line-height:1.6;resize:vertical;min-height:70px;outline:none;font-family:inherit;background:var(--bg,#fff);color:inherit">${(x.note||'').replace(/</g,'&lt;')}</textarea>
+          <button onclick="${x._auto?`nbSaveNoteAuto('${x.id}',document.getElementById('note-a-${x.id}').value)`:`nbSaveNote(${x.id},document.getElementById('note-m-${x.id}').value)`}" style="align-self:flex-end;padding:5px 14px;background:var(--accent,#4f7df3);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">儲存</button>
+        </div>
+      </details>
       <div class="nb-item-actions">
         <button class="${x.corrected?'btn-nb-uncorrect':'btn-nb-correct'}" onclick="${toggleFn}">${x.corrected?'取消訂正':'✓ 標記訂正'}</button>
         <button class="btn-anki" onclick="ankiPushOne(_nbCache[${i}])">🃏 推送</button>
@@ -1745,7 +1772,7 @@ async function ankiPullSync(){
       if(autoIdx>=0){autoItems[autoIdx].corrected=isCorrected;updated++;return;}
       const nbIdx=nbItems.findIndex(x=>x.q&&front.startsWith(x.q.substring(0,30)));
       if(nbIdx>=0){nbItems[nbIdx].corrected=isCorrected;updated++;return;}
-      nbItems.unshift({id:Date.now()+Math.random(),subj,q:front,correct,mine:'',note:'',ts,corrected:isCorrected,source:'anki'});gainExp(10);imported++;
+      nbItems.unshift({id:Date.now()+Math.random(),subj,q:front,correct,mine:'',note:'',ts,corrected:isCorrected,source:'anki'});gainExp(10);imported++;saveManualItems(nbItems);
     });
     saveAutoItems(autoItems);
     showToast(`同步完成：新匯入 ${imported}，更新 ${updated}`);renderNotebook();
