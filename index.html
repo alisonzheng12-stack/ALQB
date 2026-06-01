@@ -1593,8 +1593,10 @@ async function ankiPullSync(){
   const deck=ankiDeckName();showToast('同步中…');
   try{
     const findR=await ankiRequest('findNotes',{query:'tag:錯題賺錢'});
-    if(findR.error)throw new Error(findR.error);
+    if(findR.error)throw new Error('findNotes error: '+findR.error);
     const noteIds=findR.result||[];
+    showToast('找到 '+noteIds.length+' 筆筆記');
+    await new Promise(r=>setTimeout(r,1500));
     if(!noteIds.length){showToast('Anki 裡沒有標記「錯題賺錢」標籤的卡片');return;}
     const infoR=await ankiRequest('notesInfo',{notes:noteIds});
     const notes=infoR.result||[];
