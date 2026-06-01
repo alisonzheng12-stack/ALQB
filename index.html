@@ -33,19 +33,22 @@ _auth.onAuthStateChanged(user => {
   const btn     = document.getElementById('login-btn');
   const userInfo= document.getElementById('user-info');
   const userEmail=document.getElementById('user-email');
-  const nbNav = document.getElementById('nav-notebook');
   if (user) {
     if (btn)       btn.style.display = 'none';
     if (userInfo)  userInfo.style.display = 'flex';
     if (userEmail) userEmail.textContent = user.email;
-    if (nbNav)     nbNav.style.display = '';
     _loadFromFirestore();
   } else {
     if (btn)       btn.style.display = 'flex';
     if (userInfo)  userInfo.style.display = 'none';
-    if (nbNav)     nbNav.style.display = 'none';
     if (typeof curPage !== 'undefined' && curPage === 'notebook') showPage('practice');
   }
+  // DOM 可能還未就緒，用重試確保按鈕顯示正確
+  (function tryUpdateNbNav(attempts){
+    const nbNav = document.getElementById('nav-notebook');
+    if (!nbNav) { if(attempts>0) setTimeout(()=>tryUpdateNbNav(attempts-1), 100); return; }
+    nbNav.style.display = user ? '' : 'none';
+  })(20);
 });
 
 function _openLoginModal() {
