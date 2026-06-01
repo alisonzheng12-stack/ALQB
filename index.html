@@ -1606,9 +1606,18 @@ async function ankiPullSync(){
     (cardsR.result||[]).forEach(c=>{if(c.interval>=2)correctedNotes.add(c.note);});
     const autoItems=loadAutoItems();
     let imported=0,updated=0;
+    if(notes.length>0){
+      const firstNote=notes[0];
+      const fieldNames=Object.keys(firstNote.fields||{}).join(', ');
+      showToast('欄位名稱：'+fieldNames);
+      await new Promise(r=>setTimeout(r,2000));
+    }
     notes.forEach(note=>{
-      const front=(note.fields.Front?.value||'').replace(/<br>/g,'\n').replace(/<[^>]+>/g,'').trim();
-      const back=(note.fields.Back?.value||'').replace(/<br>/g,'\n').replace(/<[^>]+>/g,'').trim();
+      const fieldKeys=Object.keys(note.fields||{});
+      const frontKey=fieldKeys[0]||'Front';
+      const backKey=fieldKeys[1]||'Back';
+      const front=(note.fields[frontKey]?.value||'').replace(/<br>/g,'\n').replace(/<[^>]+>/g,'').trim();
+      const back=(note.fields[backKey]?.value||'').replace(/<br>/g,'\n').replace(/<[^>]+>/g,'').trim();
       if(!front)return;
       const correctMatch=back.match(/正確答案：(.+)/);const subjMatch=back.match(/科目：(.+)/);
       const correct=correctMatch?correctMatch[1].trim():'';const subj=subjMatch?subjMatch[1].trim():'（Anki 匯入）';
